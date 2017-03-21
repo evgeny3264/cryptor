@@ -1,15 +1,8 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2013
-VisualStudioVersion = 12.0.40629.0
+# Visual Studio 15
+VisualStudioVersion = 15.0.26228.9
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "simple_pe_packer", "simple_pe_packer\simple_pe_packer.vcxproj", "{DBE86958-0E39-4E23-B4C0-B18B92434604}"
-	ProjectSection(ProjectDependencies) = postProject
-		{E25B0802-1243-46C3-99D8-00B2ACBF0E22} = {E25B0802-1243-46C3-99D8-00B2ACBF0E22}
-		{1ECA5707-40BE-485D-BD79-FC592B93E019} = {1ECA5707-40BE-485D-BD79-FC592B93E019}
-		{FBD0266C-DAC5-42F3-A321-2E9E1A17697F} = {FBD0266C-DAC5-42F3-A321-2E9E1A17697F}
-	EndProjectSection
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lzo-2.06", "..\lzo-2.06\lzo-2.06.vcxproj", "{E25B0802-1243-46C3-99D8-00B2ACBF0E22}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "unpacker", "unpacker\unpacker.vcxproj", "{1ECA5707-40BE-485D-BD79-FC592B93E019}"
@@ -23,6 +16,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "protector", "protector\prot
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Antidebug", "Antidebug\Antidebug.vcxproj", "{7DFD806F-5ABF-4FAC-AF0A-C4F728D673FF}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Тест", "Тест", "{D416F93A-691F-4D53-8D87-0104F5F80B4F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -30,12 +25,6 @@ Global
 		ReleaseDecompressor|Win32 = ReleaseDecompressor|Win32
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{DBE86958-0E39-4E23-B4C0-B18B92434604}.Debug|Win32.ActiveCfg = Debug|Win32
-		{DBE86958-0E39-4E23-B4C0-B18B92434604}.Debug|Win32.Build.0 = Debug|Win32
-		{DBE86958-0E39-4E23-B4C0-B18B92434604}.Release|Win32.ActiveCfg = Release|Win32
-		{DBE86958-0E39-4E23-B4C0-B18B92434604}.Release|Win32.Build.0 = Release|Win32
-		{DBE86958-0E39-4E23-B4C0-B18B92434604}.ReleaseDecompressor|Win32.ActiveCfg = Release|Win32
-		{DBE86958-0E39-4E23-B4C0-B18B92434604}.ReleaseDecompressor|Win32.Build.0 = Release|Win32
 		{E25B0802-1243-46C3-99D8-00B2ACBF0E22}.Debug|Win32.ActiveCfg = Debug|Win32
 		{E25B0802-1243-46C3-99D8-00B2ACBF0E22}.Debug|Win32.Build.0 = Debug|Win32
 		{E25B0802-1243-46C3-99D8-00B2ACBF0E22}.Release|Win32.ActiveCfg = Release|Win32
@@ -69,5 +58,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7DFD806F-5ABF-4FAC-AF0A-C4F728D673FF} = {D416F93A-691F-4D53-8D87-0104F5F80B4F}
 	EndGlobalSection
 EndGlobal

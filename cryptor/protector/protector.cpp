@@ -89,26 +89,25 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 	//Открываем файл - его имя хранится в массиве argv по индексу 1
 	std::auto_ptr<std::ifstream> file;
 	file.reset(new std::ifstream(input_file_name, std::ios::in | std::ios::binary));
-	if (!*file)
+	if(!*file)
 	{
 		//Если открыть файл не удалось - сообщим и выйдем с ошибкой
 		log_file << "Cannot open " << to_utf8(input_file_name) << std::endl;
 		LogEdit(L"Cannot open " + input_file_name + L"\r\n");
 		return -1;
 	}
-	
+
 	try
 	{
-	
 		//Пытаемся открыть файл как 32-битный PE-файл
 		//Последний аргумент false, потому что нам не нужны
 		//"сырые" данные отладочной информации
 		//При упаковке они не используются, поэтому не загружаем эти данные
 		pe_base image(*file, pe_properties_32(), false);
 		file.reset(0); //Закрываем файл и освобождаем память
-		
+
 		//Проверим, не .NET ли образ нам подсунули
-		if (image.is_dotnet() && !force_mode)
+		if(image.is_dotnet() && !force_mode)
 		{
 			log_file << ".NET image cannot be packed!" << std::endl;
 			LogEdit(L".NET image cannot be packed!\r\n");
@@ -126,7 +125,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			//Если больше, то файл, скорее всего, сжат
 			//Поэтому (пока что) не будем упаковывать файлы
 			//С высокой энтропией, в этом мало смысла
-			if (entropy > 6.8)
+			if(entropy > 6.8)
 			{
 				log_file << "File has already been packed!" << std::endl;
 				LogEdit(L"File has already been packed!\r\n");
@@ -136,7 +135,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 		}
 
 		//Инициализируем библиотеку сжатия LZO
-		if (lzo_init() != LZO_E_OK)
+		if(lzo_init() != LZO_E_OK)
 		{
 			log_file << "Error initializing LZO library" << std::endl;
 			LogEdit(L"Error initializing LZO library!\r\n");
@@ -156,7 +155,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 		}
 
 		//Структура базовой информации о PE-файле
-		packed_file_info basic_info = { 0 };
+		packed_file_info basic_info = {0};
 		//Получаем и сохраняем изначальное количество секций
 		basic_info.number_of_sections = sections.size();
 		//Опкод ассемблерной инструкции LOCK
@@ -200,10 +199,11 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			unsigned long current_section = 0;
 
 			//Перечисляем все секции
-			for (section_list::const_iterator it = sections.begin(); it != sections.end(); ++it, ++current_section)
+			for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it, ++current_section)
 			{
 				//Ссылка на очередную секцию
 				const section& s = *it;
+
 
 				{
 					//Создаем структуру информации
@@ -228,7 +228,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 				}
 
 				//Если секция пустая, переходим к следующей
-				if (s.get_raw_data().empty())
+				if(s.get_raw_data().empty())
 					continue;
 
 				//А если не пустая - копируем ее данные в строку
@@ -237,7 +237,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			}
 
 			//Если все секции оказались пустыми, то паковать нечего!
-			if (raw_section_data.empty())
+			if(raw_section_data.empty())
 			{
 				log_file << "All sections of PE file are empty!" << std::endl;
 				LogEdit(L"All sections of PE file are empty!\r\n");
@@ -389,7 +389,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			+ out_buf;
 
 		//Проверим, что файл реально стал меньше
-		if (out_buf.size() >= src_length)
+		if(out_buf.size() >= src_length)
 		{
 			log_file << "File is incompressible!" << std::endl;
 			LogEdit(L"File is incompressible!\r\n");
@@ -400,7 +400,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 
 		//Если файл имеет TLS, получим информацию о нем
 		std::auto_ptr<tls_info> tls;
-		if (image.has_tls())
+		if(image.has_tls())
 		{
 			log_file << "Reading TLS..." << std::endl;
 			LogEdit(L"Reading TLS...\r\n");
@@ -412,7 +412,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 		//и их список
 		exported_functions_list exports;
 		export_info exports_info;
-		if (image.has_exports())
+		if(image.has_exports())
 		{
 			log_file << "Reading exports..." << std::endl;
 			LogEdit(L"Reading exports...\r\n");
@@ -422,7 +422,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 
 		//Если файл имеет Image Load Config, получим информацию о ней
 		std::auto_ptr<image_config_info> load_config;
-		if (image.has_config() && rebuild_load_config)
+		if(image.has_config() && rebuild_load_config)
 		{
 			log_file << "Reading Image Load Config..." << std::endl;
 			LogEdit(L"Reading Image Load Config...\r\n");
@@ -430,7 +430,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			{
 				load_config.reset(new image_config_info(get_image_config(image)));
 			}
-			catch (const pe_exception& e)
+			catch(const pe_exception& e)
 			{
 				image.remove_directory(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG);
 				log_file << "Error reading load config directory: " << e.what() << std::endl;
@@ -453,7 +453,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			//существующую секцию PE-файла
 			const section& last_section = image.get_image_sections().back();
 			//Посчитаем общий размер виртуальных данных
-			DWORD total_virtual_size =
+			DWORD total_virtual_size = 
 				//Виртуальный адрес последней секции
 				last_section.get_virtual_address()
 				//Выровненный виртуальный размер последней секции
@@ -464,7 +464,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			//Новая пустая корневая директория ресурсов
 			resource_directory new_root_dir;
 
-			if (image.has_resources() && repack_resources)
+			if(image.has_resources() && repack_resources)
 			{
 				log_file << "Repacking resources..." << std::endl;
 				LogEdit(L"Repacking resources...\r\n");
@@ -482,7 +482,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 					pe_resource_viewer::resource_id_list icon_id_list(res.list_resource_ids(pe_resource_viewer::resource_icon_group));
 					pe_resource_viewer::resource_name_list icon_name_list(res.list_resource_names(pe_resource_viewer::resource_icon_group));
 					//Сначала всегда располагаются именованные ресурсы, поэтому проверим, есть ли они
-					if (!icon_name_list.empty())
+					if(!icon_name_list.empty())
 					{
 						//Получим самую первую иконку для самого первого языка (по индексу 0)
 						//Если надо было бы перечислить языки для заданной иконки, можно было вызвать list_resource_languages
@@ -493,7 +493,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 							icon_name_list[0],
 							res.list_resource_languages(pe_resource_viewer::resource_icon_group, icon_name_list[0]).at(0));
 					}
-					else if (!icon_id_list.empty()) //Если нет именованных групп иконок, но есть группы с ID
+					else if(!icon_id_list.empty()) //Если нет именованных групп иконок, но есть группы с ID
 					{
 						//Получим самую первую иконку для самого первого языка (по индексу 0)
 						//Если надо было бы перечислить языки для заданной иконки, можно было вызвать list_resource_languages
@@ -505,7 +505,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 							res.list_resource_languages(pe_resource_viewer::resource_icon_group, icon_id_list[0]).at(0));
 					}
 				}
-				catch (const pe_exception&)
+				catch(const pe_exception&)
 				{
 					//Если какая-то ошибка с ресурсами, например, иконок нет,
 					//то ничего не делаем
@@ -515,7 +515,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 				{
 					//Получим список манифестов, имеющих ID
 					pe_resource_viewer::resource_id_list manifest_id_list(res.list_resource_ids(pe_resource_viewer::resource_manifest));
-					if (!manifest_id_list.empty()) //Если манифест есть
+					if(!manifest_id_list.empty()) //Если манифест есть
 					{
 						//Получим самый первый манифест для самого первого языка (по индексу 0)
 						//Добавим манифест в новую директорию ресурсов
@@ -527,7 +527,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 							);
 					}
 				}
-				catch (const pe_exception&)
+				catch(const pe_exception&)
 				{
 					//Если какая-то ошибка с ресурсами,
 					//то ничего не делаем
@@ -537,7 +537,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 				{
 					//Получим список структур информаций о версии, имеющих ID
 					pe_resource_viewer::resource_id_list version_info_id_list(res.list_resource_ids(pe_resource_viewer::resource_version));
-					if (!version_info_id_list.empty()) //Если информация о версии есть
+					if(!version_info_id_list.empty()) //Если информация о версии есть
 					{
 						//Получим самую первую структуру информации о версии для самого первого языка (по индексу 0)
 						//Добавим информацию о версии в новую директорию ресурсов
@@ -549,7 +549,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 							);
 					}
 				}
-				catch (const pe_exception&)
+				catch(const pe_exception&)
 				{
 					//Если какая-то ошибка с ресурсами,
 					//то ничего не делаем
@@ -613,19 +613,19 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			//Если у нас есть ресурсы для сборки,
 			//отключим автоматическое урезание секции после
 			//добавления в нее импортов
-			if (!new_root_dir.get_entry_list().empty())
+			if(!new_root_dir.get_entry_list().empty())
 				settings.enable_auto_strip_last_section(false);
 
 			//Пересоберем импорты
 			rebuild_imports(image, imports, added_section, settings);
 
 			//Пересоберем ресурсы, если есть, что пересобирать
-			if (!new_root_dir.get_entry_list().empty())
+			if(!new_root_dir.get_entry_list().empty())
 				rebuild_resources(image, new_root_dir, added_section, added_section.get_raw_data().size());
 
 
 			//Если у файла был TLS
-			if (tls.get())
+			if(tls.get())
 			{
 				//Указатель на нашу структуру с информацией
 				//для распаковщика
@@ -639,7 +639,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 
 				//Если у нас были TLS-коллбэки, запишем в структуру
 				//относительный виртуальный адрес их массива в оригинальном файле
-				if (!tls->get_tls_callbacks().empty())
+				if(!tls->get_tls_callbacks().empty())
 					info->original_rva_of_tls_callbacks = tls->get_callbacks_rva();
 
 				//Теперь относительный виртуальный адрес индекса TLS
@@ -688,7 +688,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			//Добавляем и эту секцию
 			section& unpacker_added_section = image.add_section(unpacker_section);
 
-			if (tls.get() || image.has_exports() || image.has_reloc() || load_config.get())
+			if(tls.get() || image.has_exports() || image.has_reloc() || load_config.get())
 			{
 				//Изменим размер данных секции распаковщика ровно
 				//по количеству байтов в теле распаковщика
@@ -699,7 +699,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 
 
 			//Если у файла есть TLS
-			if (tls.get())
+			if(tls.get())
 			{
 				log_file << "Rebuilding TLS..." << std::endl;
 				LogEdit(L"Rebuilding TLS...\r\n");
@@ -715,7 +715,7 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 				data.resize(data.size() + sizeof(IMAGE_TLS_DIRECTORY32) + sizeof(DWORD));
 
 				//Если у TLS есть коллбэки...
-				if (!tls->get_tls_callbacks().empty())
+				if(!tls->get_tls_callbacks().empty())
 				{
 					//Необходимо зарезервировать место
 					//под оригинальные TLS-коллбэки
@@ -762,12 +762,12 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 				//Дополняем секцию данными для инициализации
 				//локальной памяти потока
 				unpacker_added_section.get_raw_data() += tls->get_raw_data();
-				//Теперь установим виртуальный размер секции 
+				//Теперь установим виртуальный размер добавленной секции 
 				//с учетом SizeOfZeroFill поля TLS
 				image.set_section_virtual_size(unpacker_added_section, data.size() + tls->get_size_of_zero_fill());
 
 				//Наконец, обрежем уже ненужные нулевые байты с конца секции
-				if (!image.has_reloc() && !image.has_exports() && !load_config.get())
+				if(!image.has_reloc() && !image.has_exports() && !load_config.get())
 					pe_utils::strip_nullbytes(unpacker_added_section.get_raw_data());
 
 				//и пересчитаем ее размеры (физический и виртуальный)
@@ -777,10 +777,10 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 
 			//Выставляем новую точку входа - теперь она указывает
 			//на распаковщик, на самое его начало
-			image.set_ep(image.rva_from_section_offset(unpacker_added_section, 0));
+			image.set_ep(image.rva_from_section_offset(unpacker_added_section, 0) + 0x5C); //0x5c Смещение от начала
 		}
 
-		if (load_config.get())
+		if(load_config.get())
 		{
 			log_file << "Repacking load configuration..." << std::endl;
 			LogEdit(L"Repacking load configuration...\r\n");
@@ -790,83 +790,96 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 			load_config->clear_lock_prefix_list();
 			load_config->add_lock_prefix_rva(pe_base::rva_from_section_offset(image.get_image_sections().at(0), offsetof(packed_file_info, lock_opcode)));
 
-			//Пересобираем директорию конфигурации загрузки и располагаем ее в секции ""
+			//Пересобираем директорию конфигурации загрузки и располагаем ее в секции
 			//Пересобираем автоматически таблицу SE Handler'ов, а вот таблицу Lock-префиксов не создаем
 			rebuild_image_config(image, *load_config, unpacker_section, unpacker_section.get_raw_data().size(), true, true, true, !image.has_reloc() && !image.has_exports());
 		}
 
 		//Если у файла есть релокации
-		if (image.has_reloc())
+		if(image.has_reloc())
 		{
 			log_file << "Creating relocations..." << std::endl;
 			LogEdit(L"Creating relocations...\r\n");
 			//Создаем список таблиц релокаций и единственную таблицу
 			relocation_table_list reloc_tables;
-			relocation_table table;
 
 			section& unpacker_section = image.get_image_sections().at(1);
 
-			//Устанавливаем виртуальный адрес таблицы релокаций
-			//Он будет равен относительному виртуальному адресу второй добавленной
-			//секции, так как именно в ней находится код распаковщика
-			//с переменной, которую мы будем фиксить
-			table.set_rva(unpacker_section.get_virtual_address());
+			{
+				relocation_table table;
+				//Устанавливаем виртуальный адрес таблицы релокаций
+				//Он будет равен относительному виртуальному адресу второй добавленной
+				//секции, так как именно в ней находится код распаковщика
+				//с переменной, которую мы будем фиксить
+				table.set_rva(unpacker_section.get_virtual_address());
 
-			//Добавляем релокацию по смещению original_image_base_offset из
-			//файла parameters.h распаковщика
-			table.add_relocation(relocation_entry(original_image_base_offset, IMAGE_REL_BASED_HIGHLOW));
+				//Добавляем релокацию по смещению original_image_base_offset из
+				//файла parameters.h распаковщика
+				table.add_relocation(relocation_entry(original_image_base_offset, IMAGE_REL_BASED_HIGHLOW));
 
+				//Добавляем таблицу в список таблиц
+				reloc_tables.push_back(table);
+			}
 
 			//Если у файла был TLS
-			if (tls.get())
+			if(tls.get())
 			{
 				//Просчитаем смещение к структуре TLS
 				//относительно начала второй секции
 				DWORD tls_directory_offset = image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_TLS)
 					- image.section_from_directory(IMAGE_DIRECTORY_ENTRY_TLS).get_virtual_address();
-
+				
+				//Создаем новую таблицу релокации, так как область с таблицей TLS может быть сильно удалена
+				//от original_image_base_offset
+				relocation_table table;
+				table.set_rva(image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_TLS));
 				//Добавим релокации для полей StartAddressOfRawData,
 				//EndAddressOfRawData и AddressOfIndex
 				//Эти поля у нас всегда ненулевые
-				table.add_relocation(relocation_entry(static_cast<WORD>(tls_directory_offset + offsetof(IMAGE_TLS_DIRECTORY32, StartAddressOfRawData)), IMAGE_REL_BASED_HIGHLOW));
-				table.add_relocation(relocation_entry(static_cast<WORD>(tls_directory_offset + offsetof(IMAGE_TLS_DIRECTORY32, EndAddressOfRawData)), IMAGE_REL_BASED_HIGHLOW));
-				table.add_relocation(relocation_entry(static_cast<WORD>(tls_directory_offset + offsetof(IMAGE_TLS_DIRECTORY32, AddressOfIndex)), IMAGE_REL_BASED_HIGHLOW));
+				table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_TLS_DIRECTORY32, StartAddressOfRawData)), IMAGE_REL_BASED_HIGHLOW));
+				table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_TLS_DIRECTORY32, EndAddressOfRawData)), IMAGE_REL_BASED_HIGHLOW));
+				table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_TLS_DIRECTORY32, AddressOfIndex)), IMAGE_REL_BASED_HIGHLOW));
 
 				//Если имеются TLS-коллбэки
-				if (first_callback_offset)
+				if(first_callback_offset)
 				{
 					//То добавим еще релокации для поля AddressOfCallBacks
 					//и для адреса нашего пустого коллбэка
-					table.add_relocation(relocation_entry(static_cast<WORD>(tls_directory_offset + offsetof(IMAGE_TLS_DIRECTORY32, AddressOfCallBacks)), IMAGE_REL_BASED_HIGHLOW));
-					table.add_relocation(relocation_entry(static_cast<WORD>(first_callback_offset), IMAGE_REL_BASED_HIGHLOW));
+					table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_TLS_DIRECTORY32, AddressOfCallBacks)), IMAGE_REL_BASED_HIGHLOW));
+					table.add_relocation(relocation_entry(static_cast<WORD>(tls->get_callbacks_rva() - table.get_rva()), IMAGE_REL_BASED_HIGHLOW));
 				}
+
+				reloc_tables.push_back(table);
 			}
 
-			if (load_config.get())
+			if(load_config.get())
 			{
 				//Если файл имеет IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG, то следует добавить необходимые релокации для нее,
 				//потому что она используется загрузчиком на этапе загрузки PE-файла
 				DWORD config_directory_offset = image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG)
 					- image.section_from_directory(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG).get_virtual_address();
 
-				if (load_config->get_security_cookie_va())
-					table.add_relocation(relocation_entry(static_cast<WORD>(config_directory_offset + offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, SecurityCookie)), IMAGE_REL_BASED_HIGHLOW));
+				//Создаем новую таблицу релокации, так как область с таблицей TLS может быть сильно удалена
+				//от original_image_base_offset или TLS
+				relocation_table table;
+				table.set_rva(image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG));
 
-				if (load_config->get_se_handler_table_va())
-					table.add_relocation(relocation_entry(static_cast<WORD>(config_directory_offset + offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, SEHandlerTable)), IMAGE_REL_BASED_HIGHLOW));
+				if(load_config->get_security_cookie_va())
+					table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, SecurityCookie)), IMAGE_REL_BASED_HIGHLOW));
 
-				table.add_relocation(relocation_entry(static_cast<WORD>(config_directory_offset + offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, LockPrefixTable)), IMAGE_REL_BASED_HIGHLOW));
+				if(load_config->get_se_handler_table_va())
+					table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, SEHandlerTable)), IMAGE_REL_BASED_HIGHLOW));
+
+				table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, LockPrefixTable)), IMAGE_REL_BASED_HIGHLOW));
+				reloc_tables.push_back(table);
 			}
-
-			//Добавляем таблицу в список таблиц
-			reloc_tables.push_back(table);
 
 			//Пересобираем релокации, располагая их в конце
 			//секции с кодом распаковщика
 			rebuild_relocations(image, reloc_tables, unpacker_section, unpacker_section.get_raw_data().size(), true, !image.has_exports());
 		}
 
-		if (image.has_exports())
+		if(image.has_exports())
 		{
 			log_file << "Repacking exports..." << std::endl;
 			LogEdit(L"Repacking exports...\r\n");
@@ -953,4 +966,3 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 	log_file.close();
 	return 0;
 }
-

@@ -1,4 +1,6 @@
-﻿//Подключаем файл со структурами из проекта упаковщика
+﻿#pragma comment(linker, "/MERGE:.rdata=.text")
+#pragma comment(linker, "/SECTION:.text,EWR")
+//Подключаем файл со структурами из проекта упаковщика
 #include "../protector/structs.h"
 
 //Алгоритм распаковки
@@ -257,22 +259,20 @@ extern "C" void __declspec(naked) unpacker_main()
 
 	if (info->anti_debug == 1){
 		//Поиск отладчика
-		int d;
+		int debugger;
 		__asm
 		{
 			mov eax, fs:[018h]
 			mov eax, [eax + 30h]
 			movzx eax, byte ptr[eax + 02]
-			mov d, eax
+			mov debugger, eax
 		}		
-		if (d)
+		if (debugger)
 		{			
 			__asm ret
 
 		}
 	}
-
-
 	PBYTE mem_to_write;
 	int size;
 	size = info->size_of_crypted_data;
@@ -395,9 +395,7 @@ extern "C" void __declspec(naked) unpacker_main()
 			}
 
 		}
-	}
-
-	
+	}	
 	/* Запись в файл
 	LPVOID mem_to_write;
 	mem_to_write = virtual_alloc(

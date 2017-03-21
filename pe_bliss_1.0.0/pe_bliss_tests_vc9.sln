@@ -1,53 +1,55 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 10.00
-# Visual Studio 2008
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_runner", "tests\test_runner\test_runner.vcproj", "{31843E48-DC9A-4887-BD97-328079D78C88}"
-EndProject
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.26228.9
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{FB42AFF5-C8AA-495F-A397-E073D1A03BDE}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_bound_import", "tests\test_bound_import\test_bound_import.vcproj", "{6EBEAFA6-7489-4026-83D1-CAF67D243119}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_runner", "tests\test_runner\test_runner.vcxproj", "{31843E48-DC9A-4887-BD97-328079D78C88}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_checksum", "tests\test_checksum\test_checksum.vcproj", "{7F95DC75-2CFA-4D0D-BD43-1BF6749F16EE}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_bound_import", "tests\test_bound_import\test_bound_import.vcxproj", "{6EBEAFA6-7489-4026-83D1-CAF67D243119}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_dotnet", "tests\test_dotnet\test_dotnet.vcproj", "{094A7331-54E1-4034-BD1E-BE2F974B0142}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_checksum", "tests\test_checksum\test_checksum.vcxproj", "{7F95DC75-2CFA-4D0D-BD43-1BF6749F16EE}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_debug", "tests\test_debug\test_debug.vcproj", "{42AC1521-0800-4D81-9363-6EF9362F7A4A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_dotnet", "tests\test_dotnet\test_dotnet.vcxproj", "{094A7331-54E1-4034-BD1E-BE2F974B0142}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_entropy", "tests\test_entropy\test_entropy.vcproj", "{D3FAD2A8-FF48-4E59-A347-C54AD9DB6AC4}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_debug", "tests\test_debug\test_debug.vcxproj", "{42AC1521-0800-4D81-9363-6EF9362F7A4A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_exception_directory", "tests\test_exception_directory\test_exception_directory.vcproj", "{1C36ED94-CBE5-4107-83B6-9C37F3A4041C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_entropy", "tests\test_entropy\test_entropy.vcxproj", "{D3FAD2A8-FF48-4E59-A347-C54AD9DB6AC4}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_exports", "tests\test_exports\test_exports.vcproj", "{E126644C-38FF-41EF-9EAF-ED8C9FCF62EF}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_exception_directory", "tests\test_exception_directory\test_exception_directory.vcxproj", "{1C36ED94-CBE5-4107-83B6-9C37F3A4041C}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_imports", "tests\test_imports\test_imports.vcproj", "{BD969F96-E5A5-47B2-B5EF-B7999A441CE5}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_exports", "tests\test_exports\test_exports.vcxproj", "{E126644C-38FF-41EF-9EAF-ED8C9FCF62EF}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_load_config", "tests\test_load_config\test_load_config.vcproj", "{089E9482-33DD-4C64-84A1-C9B5F10F802A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_imports", "tests\test_imports\test_imports.vcxproj", "{BD969F96-E5A5-47B2-B5EF-B7999A441CE5}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_relocations", "tests\test_relocations\test_relocations.vcproj", "{997A89F0-372D-4306-AE4D-7438D93273C3}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_load_config", "tests\test_load_config\test_load_config.vcxproj", "{089E9482-33DD-4C64-84A1-C9B5F10F802A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_bitmap", "tests\test_resource_bitmap\test_resource_bitmap.vcproj", "{1B337DC2-628E-4DA4-8C0F-A6880289C6E2}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_relocations", "tests\test_relocations\test_relocations.vcxproj", "{997A89F0-372D-4306-AE4D-7438D93273C3}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_icon_cursor", "tests\test_resource_icon_cursor\test_resource_icon_cursor.vcproj", "{1E59538C-2C78-4D35-8639-568890543A4A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_bitmap", "tests\test_resource_bitmap\test_resource_bitmap.vcxproj", "{1B337DC2-628E-4DA4-8C0F-A6880289C6E2}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_manager", "tests\test_resource_manager\test_resource_manager.vcproj", "{39E1826B-5436-47D3-9B95-D3C667691461}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_icon_cursor", "tests\test_resource_icon_cursor\test_resource_icon_cursor.vcxproj", "{1E59538C-2C78-4D35-8639-568890543A4A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_message_table", "tests\test_resource_message_table\test_resource_message_table.vcproj", "{57EFEFC9-E2D9-418E-9F05-3FD0D9921251}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_manager", "tests\test_resource_manager\test_resource_manager.vcxproj", "{39E1826B-5436-47D3-9B95-D3C667691461}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_string_table", "tests\test_resource_string_table\test_resource_string_table.vcproj", "{C68A466D-0C1B-40BC-9AB1-49B582958524}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_message_table", "tests\test_resource_message_table\test_resource_message_table.vcxproj", "{57EFEFC9-E2D9-418E-9F05-3FD0D9921251}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_version_info", "tests\test_resource_version_info\test_resource_version_info.vcproj", "{C30B270A-4C93-44A3-AABE-633713D0F1D7}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_string_table", "tests\test_resource_string_table\test_resource_string_table.vcxproj", "{C68A466D-0C1B-40BC-9AB1-49B582958524}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_viewer", "tests\test_resource_viewer\test_resource_viewer.vcproj", "{DD6C58C3-6DD5-43B2-A9ED-760E5F5830AA}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_version_info", "tests\test_resource_version_info\test_resource_version_info.vcxproj", "{C30B270A-4C93-44A3-AABE-633713D0F1D7}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resources", "tests\test_resources\test_resources.vcproj", "{7E3867A9-59BC-4441-A74E-F4ABFFEE231C}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resource_viewer", "tests\test_resource_viewer\test_resource_viewer.vcxproj", "{DD6C58C3-6DD5-43B2-A9ED-760E5F5830AA}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_rich_data", "tests\test_rich_data\test_rich_data.vcproj", "{1F877026-3D94-41BF-B392-06DFAF67AE34}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_resources", "tests\test_resources\test_resources.vcxproj", "{7E3867A9-59BC-4441-A74E-F4ABFFEE231C}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_tls", "tests\test_tls\test_tls.vcproj", "{63D80BC8-EB14-4698-A391-4A41AC15E8D1}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_rich_data", "tests\test_rich_data\test_rich_data.vcxproj", "{1F877026-3D94-41BF-B392-06DFAF67AE34}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tests_basic", "tests\tests_basic\tests_basic.vcproj", "{3451AE03-3363-445B-8DA8-94B197563D59}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test_tls", "tests\test_tls\test_tls.vcxproj", "{63D80BC8-EB14-4698-A391-4A41AC15E8D1}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tests_utils", "tests\tests_utils\tests_utils.vcproj", "{B0478C25-73AD-4085-BA1A-DDF66431EB6E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tests_basic", "tests\tests_basic\tests_basic.vcxproj", "{3451AE03-3363-445B-8DA8-94B197563D59}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tests_utils", "tests\tests_utils\tests_utils.vcxproj", "{B0478C25-73AD-4085-BA1A-DDF66431EB6E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
