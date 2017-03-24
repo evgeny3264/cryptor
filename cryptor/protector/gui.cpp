@@ -4,6 +4,7 @@ HWND hEditIn;
 HWND hEditOut;
 HWND hEditLog;
 HWND hTextLog;
+HWND hComboBoxCryptMode;
 
 HINSTANCE hInst;
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -48,11 +49,27 @@ INT_PTR CALLBACK MainDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 		hEditIn = GetDlgItem(hDlg, IDE_IN);
 		hEditOut = GetDlgItem(hDlg, IDE_OUT);
 		hEditLog = GetDlgItem(hDlg, IDE_LOG);
-		hTextLog = GetDlgItem(hDlg, IDT_LOG);		
+		hTextLog = GetDlgItem(hDlg, IDT_LOG);	
+		hComboBoxCryptMode = GetDlgItem(hDlg, IDCB_CRYPT_MODE);
 		CheckDlgButton(hDlg, IDC_SDH, BST_CHECKED);
 		CheckDlgButton(hDlg, IDC_AD, BST_CHECKED);
 		CheckDlgButton(hDlg, IDC_CRYPT, BST_CHECKED);
 		CheckDlgButton(hDlg, IDC_RC5, BST_CHECKED);
+		TCHAR szCryptModes[3][10] =
+		{
+			TEXT("No crypt"), TEXT("Xor"), TEXT("Rc5")
+		};
+		TCHAR A[16];
+		memset(&A, 0, sizeof(A));
+		for (int i = 0; i < 3; i++)
+		{
+			wcscpy_s(A, sizeof(A) / sizeof(TCHAR), (TCHAR*)szCryptModes[i]);
+			// Add to combobox
+			SendMessage(hComboBoxCryptMode, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)A);
+		}
+		// Send the CB_SETCURSEL message to display an initial item 
+		//  in the selection field  
+		SendMessage(hComboBoxCryptMode, CB_SETCURSEL, (WPARAM)2, (LPARAM)0);
 		return (INT_PTR)TRUE;
 	}
 	case WM_COMMAND:
@@ -69,10 +86,11 @@ INT_PTR CALLBACK MainDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			SendMessage(hEditLog, WM_GETTEXT, MAX_PATH, (LPARAM)szPathLog);
 			options.force_mode = IsDlgButtonChecked(hDlg, IDC_FORCE);
 			options.strip_dos_headers = IsDlgButtonChecked(hDlg, IDC_SDH);
-			options.crypt = IsDlgButtonChecked(hDlg, IDC_CRYPT);
-			options.rc5 = IsDlgButtonChecked(hDlg, IDC_RC5);
 			options.anti_debug = IsDlgButtonChecked(hDlg, IDC_AD);
 			options.rebuild_load_config = IsDlgButtonChecked(hDlg, IDC_RLG);
+			int ItemIndex = SendMessage((HWND)hComboBoxCryptMode, (UINT)CB_GETCURSEL,
+				(WPARAM)0, (LPARAM)0);
+			options.crypt_mode = ItemIndex;
 			Protector cryptor(szPathIn, szPathOut, szPathLog, options);
 			cryptor.Protect();
 			delete[] szPathIn;

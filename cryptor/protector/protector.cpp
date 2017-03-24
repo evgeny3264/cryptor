@@ -849,26 +849,25 @@ void Protector::AntiDebug(packed_file_info &basic_info)
 
 void Protector::Crypt(packed_file_info &basic_info, std::string & out_buf)
 {
-	if (options.crypt) {
+	if (options.crypt_mode!=0) {
 		logger.Log(L"Encryption data...");
 		const int key_len = 16;
 		unsigned char key[key_len] = { 110, 36, 2, 15, 3, 17, 24, 23, 18, 45, 1, 21, 122, 16, 3, 12 };
+		basic_info.crypt_mode = options.crypt_mode;
 		//RC5
-		if (options.rc5) {
+		if (options.crypt_mode == 1) {	// XOR							
+			logger.Log(L"XOR");
+			Xor xor;
+			basic_info.size_of_crypted_data = xor.Crypt(out_buf, key, key_len);
+		}
+		else if (options.crypt_mode == 2) {
 			logger.Log(L"RC5");
 			Rc5 rc5;
 			srand(time(0));
 			unsigned long int iv[2] = { rand(), rand() };
 			basic_info.iv1 = iv[0];
 			basic_info.iv2 = iv[1];
-			basic_info.size_of_crypted_data = rc5.Crypt(out_buf, key, iv);
-			basic_info.crypt_mode = 2;
-		}
-		else {	// XOR							
-			logger.Log(L"XOR");
-			Xor xor;
-			basic_info.size_of_crypted_data = xor.Crypt(out_buf, key, key_len);
-			basic_info.crypt_mode = 1;
+			basic_info.size_of_crypted_data = rc5.Crypt(out_buf, key, iv);			
 		}
 		logger.Log(L"Success encryption data...");
 	}
