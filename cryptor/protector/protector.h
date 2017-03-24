@@ -1,4 +1,4 @@
-#pragma once
+п»ї#pragma once
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -6,21 +6,21 @@
 #include <boost/scoped_array.hpp>
 #include <ctime>
 #include <boost/timer.hpp>
-//Заголовочный файл библиотеки для работы с PE-файлами
+//Р—Р°РіРѕР»РѕРІРѕС‡РЅС‹Р№ С„Р°Р№Р» Р±РёР±Р»РёРѕС‚РµРєРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ PE-С„Р°Р№Р»Р°РјРё
 #include <pe_lib/pe_bliss.h>
 #include <pe_lib/pe_bliss_resources.h>
-//Заголовочный файл алгоритма LZO1Z999
+//Р—Р°РіРѕР»РѕРІРѕС‡РЅС‹Р№ С„Р°Р№Р» Р°Р»РіРѕСЂРёС‚РјР° LZO1Z999
 #include "../../lzo-2.06/include/lzo/lzo1z.h"
-//Заголовочный файл с нашими структурами
+//Р—Р°РіРѕР»РѕРІРѕС‡РЅС‹Р№ С„Р°Р№Р» СЃ РЅР°С€РёРјРё СЃС‚СЂСѓРєС‚СѓСЂР°РјРё
 #include "structs.h"
-//Заголовочный файл с параметрами распаковщика
+//Р—Р°РіРѕР»РѕРІРѕС‡РЅС‹Р№ С„Р°Р№Р» СЃ РїР°СЂР°РјРµС‚СЂР°РјРё СЂР°СЃРїР°РєРѕРІС‰РёРєР°
 #include "../unpacker/parameters.h"
 #include "options.h"
 #include "Util.h"
 #include "Logger.h"
 #include "rc5.h"
 #include "xor.h"
-//Директивы для линкования с собранными библиотеками PE и LZO
+//Р”РёСЂРµРєС‚РёРІС‹ РґР»СЏ Р»РёРЅРєРѕРІР°РЅРёСЏ СЃ СЃРѕР±СЂР°РЅРЅС‹РјРё Р±РёР±Р»РёРѕС‚РµРєР°РјРё PE Рё LZO
 #ifndef _M_X64
 #ifdef _DEBUG
 #pragma comment(lib, "../../pe_bliss_1.0.0/Debug/pe_bliss.lib")
