@@ -83,20 +83,24 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Protector.cpp" />
     <ClCompile Include="gui.cpp" />
-    <ClCompile Include="protector.cpp" />
-    <ClCompile Include="rc5.cpp" />
-    <ClCompile Include="xor.cpp" />
+    <ClCompile Include="Logger.cpp" />
+    <ClCompile Include="Rc5.cpp" />
+    <ClCompile Include="Util.cpp" />
+    <ClCompile Include="Xor.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Protector.h" />
     <ClInclude Include="gui.h" />
+    <ClInclude Include="Logger.h" />
     <ClInclude Include="options.h" />
-    <ClInclude Include="protector.h" />
-    <ClInclude Include="rc5.h" />
+    <ClInclude Include="Rc5.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="structs.h" />
     <ClInclude Include="unpacker.h" />
-    <ClInclude Include="xor.h" />
+    <ClInclude Include="Util.h" />
+    <ClInclude Include="Xor.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="Resource.rc" />

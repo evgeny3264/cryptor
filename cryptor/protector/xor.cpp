@@ -1,18 +1,30 @@
-#include "xor.h"
+#include "Xor.h"
 
-void xor_crypt(unsigned char * & in, int data_size, const unsigned char* key, int key_size)
+
+
+Xor::Xor()
 {
-	
-	for (int i = 1; i<data_size; i++)
-	{
-		in[i]= (char)(in[i] ^ key[i%key_size]);
-	}
 }
 
-void nxor_crypt(std::string &in, const unsigned char* key, int key_size)
+
+Xor::~Xor()
+{
+}
+
+int Xor::Crypt(std::string & in, const unsigned char * key, int key_size)
 {
 	for (int i = 1; i<in.size(); i++)
 	{
 		in[i] = (char)(in[i] ^ key[i%key_size]);
 	}
+	return in.size();
+}
+
+int Xor::Crypt(unsigned char *& in, int data_size, const unsigned char * key, int key_size)
+{
+	for (int i = 1; i<data_size; i++)
+	{
+		in[i] = (char)(in[i] ^ key[i%key_size]);
+	}
+	return data_size;
 }

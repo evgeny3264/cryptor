@@ -1,246 +1,197 @@
-п»ї#include "protector.h"
+#include "Protector.h"
+//Тело распаковщика (автогенеренное)
+#include "unpacker.h"
+#include "Xor.h"
+#include "Rc5.h"
 
-std::string to_utf8(const wchar_t* buffer, int len)
+Protector::Protector(WCHAR * inFile, WCHAR * outFile, std::wstring logFile, Options opt) :
+	options(opt),
+	inFile(inFile),
+	outFile(outFile),
+	logger(logFile)	
 {
-	int nChars = ::WideCharToMultiByte(
-		CP_UTF8,
-		0,
-		buffer,
-		len,
-		NULL,
-		0,
-		NULL,
-		NULL);
-	if (nChars == 0) return "";
-
-	std::string newbuffer;
-	newbuffer.resize(nChars);
-	::WideCharToMultiByte(
-		CP_UTF8,
-		0,
-		buffer,
-		len,
-		const_cast< char* >(newbuffer.c_str()),
-		nChars,
-		NULL,
-		NULL);
-
-	return newbuffer;
 }
 
-std::string to_utf8(const std::wstring& str)
+Protector::~Protector()
 {
-	return to_utf8(str.c_str(), (int)str.size());
 }
 
+int Protector::Protect()
+{
+	//Таймер будет считать, сколько времени
+	//ушло на упаковку файла
+	boost::timer pack_timer;	
 
-
-int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
-{	
-
-	//РўР°Р№РјРµСЂ Р±СѓРґРµС‚ СЃС‡РёС‚Р°С‚СЊ, СЃРєРѕР»СЊРєРѕ РІСЂРµРјРµРЅРё
-	//СѓС€Р»Рѕ РЅР° СѓРїР°РєРѕРІРєСѓ С„Р°Р№Р»Р°
-	boost::timer pack_timer;
-
-	//РџСЂРёРЅСѓРґРёС‚РµР»СЊРЅР°СЏ СѓРїР°РєРѕРІРєР° - Р±СѓРґРµС‚ СѓРїР°РєРѕРІР°РЅ РґР°Р¶Рµ
-	//РїРѕС‚РµРЅС†РёР°Р»СЊРЅРѕ РЅРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ С„Р°Р№Р»
-	bool force_mode =opt.force_mode;
-	//РџРµСЂРµРїР°РєРѕРІС‹РІР°С‚СЊ Р»Рё СЂРµСЃСѓСЂСЃС‹
-	bool repack_resources=true;
-	//РџРµСЂРµРїР°РєРѕРІС‹РІР°С‚СЊ Р»Рё РґРёСЂРµРєС‚РѕСЂРёСЋ РєРѕРЅС„РёРіСѓСЂР°С†РёРё Р·Р°РіСЂСѓР·РєРё
-	bool rebuild_load_config=opt.rebuild_load_config;
-	//РћР±СЂРµР·Р°С‚СЊ Р»Рё DOS-Р·Р°РіРѕР»РѕРІРѕРє
-	bool strip_dos_headers=opt.strip_dos_headers;
-	//Р¤Р°Р№Р»РѕРІРѕРµ РІС‹СЂР°РІРЅРёРІР°РЅРёРµ РїРѕСЃР»Рµ СѓРїР°РєРѕРІРєРё
-	unsigned long file_alignment=512;//512
-	//РЁРёС„СЂРѕРІР°РЅРёРµ РґР°РЅРЅС‹С…
-	bool encrypt = opt.crypt;
-	
-	//РџСѓС‚СЊ Рє РёСЃС…РѕРґРЅРѕРјСѓ С„Р°Р№Р»Сѓ
+	//Путь к исходному файлу
 	std::wstring input_file_name(inFile);
-	//РџСѓС‚СЊ РґР»СЏ СѓРїР°РєРѕРІР°РЅРЅРѕРіРѕ С„Р°Р№Р»Р°
+	//Путь для упакованного файла
 	std::wstring output_file_name(outFile);
-	// РџСѓС‚СЊ РґР»СЏ Р»РѕРі С„Р°Р№Р»Р°
-	std::wstring log_file_name(logFile);
+	//Если не указан путь к исходному файлу
+	if (input_file_name.empty()) {
+		logger.Log(L"No input file specified");
 
-	std::ofstream log_file;
-	log_file.open(log_file_name);
-
-	//Р•СЃР»Рё РЅРµ СѓРєР°Р·Р°РЅ РїСѓС‚СЊ Рє РёСЃС…РѕРґРЅРѕРјСѓ С„Р°Р№Р»Сѓ
-	if (input_file_name.empty()){
-		log_file << "No input file specified" << std::endl;
-		LogEdit(L"No input file specified\r\n");
+		return 0;
 	}
 	WCHAR* backupFile = new WCHAR[MAX_PATH];
 	wcscpy_s(backupFile, MAX_PATH, inFile);
 	wcscat_s(backupFile, MAX_PATH, L"_o");
-	CopyFile(inFile, backupFile,false);
+	CopyFile(inFile, backupFile, false);
 
-	//Р•СЃР»Рё СѓРєР°Р·Р°РЅ СЂРµР¶РёРј РїСЂРёРЅСѓРґРёС‚РµР»СЊРЅРѕР№ СѓРїР°РєРѕРІРєРё
-	if (force_mode)
+	//Если указан режим принудительной упаковки
+	if (options.force_mode)
 	{
-		log_file << "Force mode is active!" << std::endl;
-		LogEdit(L"Force mode is active!\r\n");
+		logger.Log(L"Force mode is active!");
 	}
 
 
-	log_file << "Packing file: " << to_utf8(input_file_name) << std::endl;
-	LogEdit(L"Packing file:" + input_file_name + L"\r\n");
-	//РћС‚РєСЂС‹РІР°РµРј С„Р°Р№Р» - РµРіРѕ РёРјСЏ С…СЂР°РЅРёС‚СЃСЏ РІ РјР°СЃСЃРёРІРµ argv РїРѕ РёРЅРґРµРєСЃСѓ 1
+	logger.Log(L"Packing file: " + input_file_name);
+
+	//Открываем файл - его имя хранится в массиве argv по индексу 1
 	std::auto_ptr<std::ifstream> file;
 	file.reset(new std::ifstream(input_file_name, std::ios::in | std::ios::binary));
-	if(!*file)
+	if (!*file)
 	{
-		//Р•СЃР»Рё РѕС‚РєСЂС‹С‚СЊ С„Р°Р№Р» РЅРµ СѓРґР°Р»РѕСЃСЊ - СЃРѕРѕР±С‰РёРј Рё РІС‹Р№РґРµРј СЃ РѕС€РёР±РєРѕР№
-		log_file << "Cannot open " << to_utf8(input_file_name) << std::endl;
-		LogEdit(L"Cannot open " + input_file_name + L"\r\n");
+		//Если открыть файл не удалось - сообщим и выйдем с ошибкой
+		logger.Log(L"Cannot open " + input_file_name);
 		return -1;
 	}
 
 	try
 	{
-		//РџС‹С‚Р°РµРјСЃСЏ РѕС‚РєСЂС‹С‚СЊ С„Р°Р№Р» РєР°Рє 32-Р±РёС‚РЅС‹Р№ PE-С„Р°Р№Р»
-		//РџРѕСЃР»РµРґРЅРёР№ Р°СЂРіСѓРјРµРЅС‚ false, РїРѕС‚РѕРјСѓ С‡С‚Рѕ РЅР°Рј РЅРµ РЅСѓР¶РЅС‹
-		//"СЃС‹СЂС‹Рµ" РґР°РЅРЅС‹Рµ РѕС‚Р»Р°РґРѕС‡РЅРѕР№ РёРЅС„РѕСЂРјР°С†РёРё
-		//РџСЂРё СѓРїР°РєРѕРІРєРµ РѕРЅРё РЅРµ РёСЃРїРѕР»СЊР·СѓСЋС‚СЃСЏ, РїРѕСЌС‚РѕРјСѓ РЅРµ Р·Р°РіСЂСѓР¶Р°РµРј СЌС‚Рё РґР°РЅРЅС‹Рµ
+		//Пытаемся открыть файл как 32-битный PE-файл
+		//Последний аргумент false, потому что нам не нужны
+		//"сырые" данные отладочной информации
+		//При упаковке они не используются, поэтому не загружаем эти данные
 		pe_base image(*file, pe_properties_32(), false);
-		file.reset(0); //Р—Р°РєСЂС‹РІР°РµРј С„Р°Р№Р» Рё РѕСЃРІРѕР±РѕР¶РґР°РµРј РїР°РјСЏС‚СЊ
+		file.reset(0); //Закрываем файл и освобождаем память
 
-		//РџСЂРѕРІРµСЂРёРј, РЅРµ .NET Р»Рё РѕР±СЂР°Р· РЅР°Рј РїРѕРґСЃСѓРЅСѓР»Рё
-		if(image.is_dotnet() && !force_mode)
+					   //Проверим, не .NET ли образ нам подсунули
+		if (image.is_dotnet() && !options.force_mode)
 		{
-			log_file << ".NET image cannot be packed!" << std::endl;
-			LogEdit(L".NET image cannot be packed!\r\n");
+			logger.Log(L".NET image cannot be packed!");
 			return -1;
 		}
 
-		//РџСЂРѕСЃС‡РёС‚Р°РµРј СЌРЅС‚СЂРѕРїРёСЋ СЃРµРєС†РёР№ С„Р°Р№Р»Р°, С‡С‚РѕР±С‹ СѓР±РµРґРёС‚СЊСЃСЏ, С‡С‚Рѕ С„Р°Р№Р» РЅРµ СѓРїР°РєРѕРІР°РЅ
+		//Просчитаем энтропию секций файла, чтобы убедиться, что файл не упакован
 		{
-			log_file << "Entropy of sections: ";
 			double entropy = entropy_calculator::calculate_entropy(image);
-			log_file << entropy << std::endl;
-			LogEdit(L"Entropy of sections:"+std::to_wstring(entropy)+L"\r\n");
-			//РќР° wasm.ru РµСЃС‚СЊ СЃС‚Р°С‚СЊСЏ, РІ РєРѕС‚РѕСЂРѕР№ РіРѕРІРѕСЂРёС‚СЃСЏ,
-			//С‡С‚Рѕ Сѓ PE-С„Р°Р№Р»РѕРІ РЅРѕСЂРјР°Р»СЊРЅР°СЏ СЌРЅС‚СЂРѕРїРёСЏ РґРѕ 6.8
-			//Р•СЃР»Рё Р±РѕР»СЊС€Рµ, С‚Рѕ С„Р°Р№Р», СЃРєРѕСЂРµРµ РІСЃРµРіРѕ, СЃР¶Р°С‚
-			//РџРѕСЌС‚РѕРјСѓ (РїРѕРєР° С‡С‚Рѕ) РЅРµ Р±СѓРґРµРј СѓРїР°РєРѕРІС‹РІР°С‚СЊ С„Р°Р№Р»С‹
-			//РЎ РІС‹СЃРѕРєРѕР№ СЌРЅС‚СЂРѕРїРёРµР№, РІ СЌС‚РѕРј РјР°Р»Рѕ СЃРјС‹СЃР»Р°
-			if(entropy > 6.8)
+			logger.Log(L"Entropy of sections: " + std::to_wstring(entropy));
+			//На wasm.ru есть статья, в которой говорится,
+			//что у PE-файлов нормальная энтропия до 6.8
+			//Если больше, то файл, скорее всего, сжат
+			//Поэтому (пока что) не будем упаковывать файлы
+			//С высокой энтропией, в этом мало смысла
+			if (entropy > 6.8)
 			{
-				log_file << "File has already been packed!" << std::endl;
-				LogEdit(L"File has already been packed!\r\n");
-				if (!force_mode)
+				logger.Log(L"File has already been packed!");
+				if (!options.force_mode)
 					return -1;
 			}
 		}
 
-		//РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј Р±РёР±Р»РёРѕС‚РµРєСѓ СЃР¶Р°С‚РёСЏ LZO
-		if(lzo_init() != LZO_E_OK)
+		//Инициализируем библиотеку сжатия LZO
+		if (lzo_init() != LZO_E_OK)
 		{
-			log_file << "Error initializing LZO library" << std::endl;
-			LogEdit(L"Error initializing LZO library!\r\n");
+			logger.Log(L"Error initializing LZO library");
 			return -1;
 		}
 
-		log_file << "Reading sections..." << std::endl;
-		LogEdit(L"Reading sections...\r\n");
-		//РџРѕР»СѓС‡Р°РµРј СЃРїРёСЃРѕРє СЃРµРєС†РёР№ PE-С„Р°Р№Р»Р°
+		logger.Log(L"Reading sections...");
+		//Получаем список секций PE-файла
 		const section_list& sections = image.get_image_sections();
 		if (sections.empty())
 		{
-			//Р•СЃР»Рё Сѓ С„Р°Р№Р»Р° РЅРµС‚ РЅРё РѕРґРЅРѕР№ СЃРµРєС†РёРё, РЅР°Рј РЅРµС‡РµРіРѕ СѓРїР°РєРѕРІС‹РІР°С‚СЊ
-			log_file << "File has no sections!" << std::endl;
-			LogEdit(L"File has no sections!\r\n");
+			//Если у файла нет ни одной секции, нам нечего упаковывать
+			logger.Log(L"File has no sections!");
 			return -1;
 		}
 
-		//РЎС‚СЂСѓРєС‚СѓСЂР° Р±Р°Р·РѕРІРѕР№ РёРЅС„РѕСЂРјР°С†РёРё Рѕ PE-С„Р°Р№Р»Рµ
-		packed_file_info basic_info = {0};
-		//РџРѕР»СѓС‡Р°РµРј Рё СЃРѕС…СЂР°РЅСЏРµРј РёР·РЅР°С‡Р°Р»СЊРЅРѕРµ РєРѕР»РёС‡РµСЃС‚РІРѕ СЃРµРєС†РёР№
+		//Структура базовой информации о PE-файле
+		packed_file_info basic_info = { 0 };
+		//Получаем и сохраняем изначальное количество секций
 		basic_info.number_of_sections = sections.size();
-		//РћРїРєРѕРґ Р°СЃСЃРµРјР±Р»РµСЂРЅРѕР№ РёРЅСЃС‚СЂСѓРєС†РёРё LOCK
+		//Опкод ассемблерной инструкции LOCK
 		basic_info.lock_opcode = 0xf0;
 
-		//Р—Р°РїРѕРјРёРЅР°РµРј РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ Р°РґСЂРµСЃ Рё СЂР°Р·РјРµСЂ
-		//РѕСЂРёРіРёРЅР°Р»СЊРЅРѕР№ РґРёСЂРµРєС‚РѕСЂРёРё РёРјРїРѕСЂС‚Р° СѓРїР°РєРѕРІС‹РІР°РµРјРѕРіРѕ С„Р°Р№Р»Р°
+		//Запоминаем относительный адрес и размер
+		//оригинальной директории импорта упаковываемого файла
 		basic_info.original_import_directory_rva = image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_IMPORT);
 		basic_info.original_import_directory_size = image.get_directory_size(IMAGE_DIRECTORY_ENTRY_IMPORT);
-		//Р—Р°РїРѕРјРёРЅР°РµРј РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ Р°РґСЂРµСЃ Рё СЂР°Р·РјРµСЂ
-		//РѕСЂРёРіРёРЅР°Р»СЊРЅРѕР№ РґРёСЂРµРєС‚РѕСЂРёРё СЂРµСЃСѓСЂСЃРѕРІ СѓРїР°РєРѕРІС‹РІР°РµРјРѕРіРѕ С„Р°Р№Р»Р°
+		//Запоминаем относительный адрес и размер
+		//оригинальной директории ресурсов упаковываемого файла
 		basic_info.original_resource_directory_rva = image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_RESOURCE);
 		basic_info.original_resource_directory_size = image.get_directory_size(IMAGE_DIRECTORY_ENTRY_RESOURCE);
-		//Р—Р°РїРѕРјРёРЅР°РµРј РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ Р°РґСЂРµСЃ Рё СЂР°Р·РјРµСЂ
-		//РѕСЂРёРіРёРЅР°Р»СЊРЅРѕР№ РґРёСЂРµРєС‚РѕСЂРёРё СЂРµР»РѕРєР°С†РёР№ СѓРїР°РєРѕРІС‹РІР°РµРјРѕРіРѕ С„Р°Р№Р»Р°
+		//Запоминаем относительный адрес и размер
+		//оригинальной директории релокаций упаковываемого файла
 		basic_info.original_relocation_directory_rva = image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_BASERELOC);
 		basic_info.original_relocation_directory_size = image.get_directory_size(IMAGE_DIRECTORY_ENTRY_BASERELOC);
 
-		//Р—Р°РїРѕРјРёРЅР°РµРј РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ Р°РґСЂРµСЃ
-		//РѕСЂРёРіРёРЅР°Р»СЊРЅРѕР№ РґРёСЂРµРєС‚РѕСЂРёРё РєРѕРЅС„РёРіСѓСЂР°С†РёРё Р·Р°РіСЂСѓР·РєРё СѓРїР°РєРѕРІС‹РІР°РµРјРѕРіРѕ С„Р°Р№Р»Р°
+		//Запоминаем относительный адрес
+		//оригинальной директории конфигурации загрузки упаковываемого файла
 		basic_info.original_load_config_directory_rva = image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG);
 
-		//Р—Р°РїРѕРјРёРЅР°РµРј РµРіРѕ С‚РѕС‡РєСѓ РІС…РѕРґР°
+		//Запоминаем его точку входа
 		basic_info.original_entry_point = image.get_ep();
-		//Р—Р°РїРѕРјРёРЅР°РµРј РѕР±С‰РёР№ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ СЂР°Р·РјРµСЂ РІСЃРµС… СЃРµРєС†РёР№
-		//СѓРїР°РєРѕРІС‹РІР°РµРјРѕРіРѕ С„Р°Р№Р»Р°
+		//Запоминаем общий виртуальный размер всех секций
+		//упаковываемого файла
 		basic_info.total_virtual_size_of_sections = image.get_size_of_image();
 
 
-		//РЎС‚СЂРѕРєР°, РєРѕС‚РѕСЂР°СЏ Р±СѓРґРµС‚ С…СЂР°РЅРёС‚СЊ РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕ
-		//СЃС‚СЂСѓРєС‚СѓСЂС‹ packed_section РґР»СЏ РєР°Р¶РґРѕР№ СЃРµРєС†РёРё
+		//Строка, которая будет хранить последовательно
+		//структуры packed_section для каждой секции
 		std::string packed_sections_info;
 
 		{
-			//Р’С‹РґРµР»РёРј РІ СЃС‚СЂРѕРєРµ РЅРµРѕР±С…РѕРґРёРјРѕРµ РєРѕР»РёС‡РµСЃС‚РІРѕ РїР°РјСЏС‚Рё РґР»СЏ СЌС‚РёС… СЃС‚СЂРєСѓС‚РєСЂ
+			//Выделим в строке необходимое количество памяти для этих стркуткр
 			packed_sections_info.resize(sections.size() * sizeof(packed_section));
 
-			//"РЎС‹СЂС‹Рµ" РґР°РЅРЅС‹Рµ РІСЃРµС… СЃРµРєС†РёР№, СЃС‡РёС‚Р°РЅРЅС‹Рµ РёР· С„Р°Р№Р»Р° Рё СЃР»РµРїР»РµРЅРЅС‹Рµ РІРѕРµРґРёРЅРѕ
+			//"Сырые" данные всех секций, считанные из файла и слепленные воедино
 			std::string raw_section_data;
-			//РРЅРґРµРєСЃ С‚РµРєСѓС‰РµР№ СЃРµРєС†РёРё
+			//Индекс текущей секции
 			unsigned long current_section = 0;
 
-			//РџРµСЂРµС‡РёСЃР»СЏРµРј РІСЃРµ СЃРµРєС†РёРё
-			for(section_list::const_iterator it = sections.begin(); it != sections.end(); ++it, ++current_section)
+			//Перечисляем все секции
+			for (section_list::const_iterator it = sections.begin(); it != sections.end(); ++it, ++current_section)
 			{
-				//РЎСЃС‹Р»РєР° РЅР° РѕС‡РµСЂРµРґРЅСѓСЋ СЃРµРєС†РёСЋ
+				//Ссылка на очередную секцию
 				const section& s = *it;
 
 
 				{
-					//РЎРѕР·РґР°РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ РёРЅС„РѕСЂРјР°С†РёРё
-					//Рѕ СЃРµРєС†РёРё РІ СЃС‚СЂРѕРєРµ Рё Р·Р°РїРѕР»РЅСЏРµРј РµРµ
+					//Создаем структуру информации
+					//о секции в строке и заполняем ее
 					packed_section& info
 						= reinterpret_cast<packed_section&>(packed_sections_info[current_section * sizeof(packed_section)]);
 
-					//РҐР°СЂР°РєС‚РµСЂРёСЃС‚РёРєРё СЃРµРєС†РёРё
+					//Характеристики секции
 					info.characteristics = s.get_characteristics();
-					//РЈРєР°Р·Р°С‚РµР»СЊ РЅР° С„Р°Р№Р»РѕРІС‹Рµ РґР°РЅРЅС‹Рµ
+					//Указатель на файловые данные
 					info.pointer_to_raw_data = s.get_pointer_to_raw_data();
-					//Р Р°Р·РјРµСЂ С„Р°Р№Р»РѕРІС‹С… РґР°РЅРЅС‹С…
+					//Размер файловых данных
 					info.size_of_raw_data = s.get_size_of_raw_data();
-					//РћС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ СЃРµРєС†РёРё
+					//Относительный виртуальный адрес секции
 					info.virtual_address = s.get_virtual_address();
-					//Р’РёСЂС‚СѓР°Р»СЊРЅС‹Р№ СЂР°Р·РјРµСЂ СЃРµРєС†РёРё
+					//Виртуальный размер секции
 					info.virtual_size = s.get_virtual_size();
 
-					//РљРѕРїРёСЂСѓРµРј РёРјСЏ СЃРµРєС†РёРё (РѕРЅРѕ РјР°РєСЃРёРјР°Р»СЊРЅРѕ 8 СЃРёРјРІРѕР»РѕРІ)
+					//Копируем имя секции (оно максимально 8 символов)
 					memset(info.name, 0, sizeof(info.name));
 					memcpy(info.name, s.get_name().c_str(), s.get_name().length());
 				}
 
-				//Р•СЃР»Рё СЃРµРєС†РёСЏ РїСѓСЃС‚Р°СЏ, РїРµСЂРµС…РѕРґРёРј Рє СЃР»РµРґСѓСЋС‰РµР№
-				if(s.get_raw_data().empty())
+				//Если секция пустая, переходим к следующей
+				if (s.get_raw_data().empty())
 					continue;
 
-				//Рђ РµСЃР»Рё РЅРµ РїСѓСЃС‚Р°СЏ - РєРѕРїРёСЂСѓРµРј РµРµ РґР°РЅРЅС‹Рµ РІ СЃС‚СЂРѕРєСѓ
-				//СЃ РґР°РЅРЅС‹РјРё РІСЃРµС… СЃРµРєС†РёР№
+				//А если не пустая - копируем ее данные в строку
+				//с данными всех секций
 				raw_section_data += s.get_raw_data();
 			}
 
-			//Р•СЃР»Рё РІСЃРµ СЃРµРєС†РёРё РѕРєР°Р·Р°Р»РёСЃСЊ РїСѓСЃС‚С‹РјРё, С‚Рѕ РїР°РєРѕРІР°С‚СЊ РЅРµС‡РµРіРѕ!
-			if(raw_section_data.empty())
+			//Если все секции оказались пустыми, то паковать нечего!
+			if (raw_section_data.empty())
 			{
-				log_file << "All sections of PE file are empty!" << std::endl;
-				LogEdit(L"All sections of PE file are empty!\r\n");
+				logger.Log(L"All sections of PE file are empty!");
 				return -1;
 			}
 
@@ -248,193 +199,116 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 		}
 
 
-		//РќРѕРІР°СЏ СЃРµРєС†РёСЏ
+		//Новая секция
 		section new_section;
-		//РРјСЏ - .rsrc (РїРѕСЏСЃРЅРµРЅРёРµ РЅРёР¶Рµ)
+		//Имя - .rsrc (пояснение ниже)
 		new_section.set_name(".rsrc");
-		//Р”РѕСЃС‚СѓРїРЅР° РЅР° С‡С‚РµРЅРёРµ, Р·Р°РїРёСЃСЊ, РёСЃРїРѕР»РЅРµРЅРёРµ
+		//Доступна на чтение, запись, исполнение
 		new_section.readable(true).writeable(true).executable(true);
-		//РЎСЃС‹Р»РєР° РЅР° СЃС‹СЂС‹Рµ РґР°РЅРЅС‹Рµ СЃРµРєС†РёРё
+		//Ссылка на сырые данные секции
 		std::string& out_buf = new_section.get_raw_data();
 
 
-		//РЎРѕР·РґР°РµРј "СѓРјРЅС‹Р№" СѓРєР°Р·Р°С‚РµР»СЊ
-		//Рё РІС‹РґРµР»СЏРµРј РЅРµРѕР±С…РѕРґРёРјСѓСЋ РґР»СЏ СЃР¶Р°С‚РёСЏ Р°Р»РіРѕСЂРёС‚РјСѓ LZO РїР°РјСЏС‚СЊ
-		//РЈРјРЅС‹Р№ СѓРєР°Р·Р°С‚РµР»СЊ РІ СЃР»СѓС‡Р°Рµ С‡РµРіРѕ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё
-		//СЌС‚Сѓ РїР°РјСЏС‚СЊ РѕСЃРІРѕР±РѕРґРёС‚
-		//РњС‹ РёСЃРїРѕР»СЊР·СѓРµРј С‚РёРї lzo_align_t РґР»СЏ С‚РѕРіРѕ, С‡С‚РѕР±С‹
-		//РїР°РјСЏС‚СЊ Р±С‹Р»Р° РІС‹СЂРѕРІРЅСЏРЅР° РєР°Рє РЅР°РґРѕ
-		//(РёР· РґРѕРєСѓРјРµРЅС‚Р°С†РёРё Рє LZO)
+		//Создаем "умный" указатель
+		//и выделяем необходимую для сжатия алгоритму LZO память
+		//Умный указатель в случае чего автоматически
+		//эту память освободит
+		//Мы используем тип lzo_align_t для того, чтобы
+		//память была выровняна как надо
+		//(из документации к LZO)
 		boost::scoped_array<lzo_align_t> work_memory(new lzo_align_t[LZO1Z_999_MEM_COMPRESS]);
 
-		//Р”Р»РёРЅР° РЅРµСѓРїР°РєРѕРІР°РЅРЅС‹С… РґР°РЅРЅС‹С…
+		//Длина неупакованных данных
 		lzo_uint src_length = packed_sections_info.size();
-		//РЎРѕС…СЂР°РЅРёРј РµРµ РІ РЅР°С€Сѓ СЃС‚СЂСѓРєС‚СѓСЂСѓ РёРЅС„РѕСЂРјР°С†РёРё Рѕ С„Р°Р№Р»Рµ
+		//Сохраним ее в нашу структуру информации о файле
 		basic_info.size_of_unpacked_data = src_length;
 
-		//Р”Р»РёРЅР° СѓРїР°РєРѕРІР°РЅРЅС‹С… РґР°РЅРЅС‹С…
-		//(РїРѕРєР° РЅР°Рј РЅРµРёР·РІРµСЃС‚РЅР°)
+		//Длина упакованных данных
+		//(пока нам неизвестна)
 		lzo_uint out_length = 0;
 
-		//РќРµРѕР±С…РѕРґРёРјС‹Р№ Р±СѓС„РµСЂ РґР»СЏ СЃР¶Р°С‚С‹С… РґР°РЅРЅС‹С…
-		//(РґР»РёРЅР° РѕРїСЏС‚СЊ-С‚Р°РєРё РёСЃС…РѕРґСЏ РёР· РґРѕРєСѓРјРµРЅС‚Р°С†РёРё Рє LZO)
+		//Необходимый буфер для сжатых данных
+		//(длина опять-таки исходя из документации к LZO)
 		out_buf.resize(src_length + src_length / 16 + 64 + 3);
 
-		//РџСЂРѕРёР·РІРѕРґРёРј СЃР¶Р°С‚РёРµ РґР°РЅРЅС‹С…
-		log_file << "Packing data..." << std::endl;
-		LogEdit(L"Packing data...\r\n");
+		//Производим сжатие данных
+		logger.Log(L"Packing data...");
 		if (LZO_E_OK !=
 			lzo1z_999_compress(reinterpret_cast<const unsigned char*>(packed_sections_info.data()),
-			src_length,
-			reinterpret_cast<unsigned char*>(&out_buf[0]),
-			&out_length,
-			work_memory.get())
+				src_length,
+				reinterpret_cast<unsigned char*>(&out_buf[0]),
+				&out_length,
+				work_memory.get())
 			)
 		{
-			//Р•СЃР»Рё С‡С‚Рѕ-С‚Рѕ РЅРµ С‚Р°Рє, РІС‹Р№РґРµРј
-			log_file << "Error compressing data!" << std::endl;
-			LogEdit(L"Error compressing data!\r\n");
+			//Если что-то не так, выйдем
+			logger.Log(L"Error compressing data!");
 			return -1;
 		}
 
-		log_file << "Packing complete..." << std::endl;
-		LogEdit(L"Packing complete..\r\n");
-		//РЎРѕС…СЂР°РЅРёРј РґР»РёРЅСѓ СѓРїР°РєРѕРІР°РЅРЅС‹С… РґР°РЅРЅС‹С… РІ РЅР°С€Сѓ СЃС‚СЂСѓРєС‚СѓСЂСѓ
+		logger.Log(L"Packing complete...");
+		//Сохраним длину упакованных данных в нашу структуру
 		basic_info.size_of_packed_data = out_length;
-		//Р РµСЃР°Р№Р·РёРј РІС‹С…РѕРґРЅРѕР№ Р±СѓС„РµСЂ СЃРѕ СЃР¶Р°С‚С‹РјРё РґР°РЅРЅС‹РјРё РїРѕ
-		//СЂРµР·СѓР»СЊС‚РёСЂСѓСЋС‰РµР№ РґР»РёРЅРµ СЃР¶Р°С‚С‹С… РґР°РЅРЅС‹С…, РєРѕС‚РѕСЂР°СЏ
-		//С‚РµРїРµСЂСЊ РЅР°Рј РёР·РІРµСЃС‚РЅР°
+		//Ресайзим выходной буфер со сжатыми данными по
+		//результирующей длине сжатых данных, которая
+		//теперь нам известна
 		out_buf.resize(out_length);
-
-		//С€РёС„СЂРѕРІР°РЅРёРµ
-		/*		
-		if (encrypt){			
-			BYTE * out;
-			BYTE * in = (BYTE*)out_buf.c_str();
-			// key
-			unsigned char key[b] = { 110, 36, 2, 15, 3, 17, 24, 23, 18, 45, 1, 21, 122, 16, 3, 12 };			
-			int size = crypt(in, out_buf.size() , key, out);
-			//PBYTE out2;
-			//decrypt(out, size, key, out2); 
-			out_buf = std::string();
-			out_buf.resize(size);
-			for (int i = 0; i < size; i++)
-			{
-				out_buf[i] = (char)out[i];
-			}
-			basic_info.size_of_crypted_data = size;			
-		}
-		*/
-		/*
-		HANDLE hFile = CreateFile(L"uncrypteddata", GENERIC_WRITE, 0, NULL,
-				CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-		DWORD nBytes;
-		WriteFile(hFile, reinterpret_cast<LPCVOID>(out_buf.c_str()), out_buf.size(), &nBytes, NULL);
-			CloseHandle(hFile);*/
-	//	int size_packed = out_buf.size();
 		basic_info.size_of_crypted_data = basic_info.size_of_packed_data;
 		basic_info.iv1 = 0;
 		basic_info.iv2 = 0;
-		if (encrypt){
-			log_file << "Encryption data..." << std::endl;
-			LogEdit(L"Encryption data...\r\n");
-			//RC5
-			if (opt.rc5){
-				LogEdit(L"RC5\r\n");
-				log_file << "RC5" << std::endl;
-				unsigned char key[b] = { 110, 36, 2, 15, 3, 17, 24, 23, 18, 45, 1, 21, 122, 16, 3, 12 };
-				srand(time(0));
-				unsigned long int iv[2] = { rand(), rand() };
-				basic_info.iv1 = iv[0];
-				basic_info.iv2 = iv[1];
-				basic_info.size_of_crypted_data = ncrypt(out_buf, key, iv);
-				basic_info.crypt_mode = 2;
-				//	ndecrypt(out_buf, key);
-				//	out_buf.resize(size_packed);
-			}
-			else {
-				// XOR
-				LogEdit(L"XOR\r\n");
-				log_file << "XOR" << std::endl;
-				unsigned char key[b] = { 110, 36, 2, 15, 3, 17, 24, 23, 18, 45, 1, 21, 122, 16, 3, 12 };
-				nxor_crypt(out_buf, key, b);
-				basic_info.crypt_mode = 1;
-
-			}
-			log_file << "Success encryption data..." << std::endl;
-			LogEdit(L"Success encryption data...\r\n");
-		}
-		else
-		{
-			basic_info.crypt_mode = 0;
-			log_file << "Encryption data off." << std::endl;
-			LogEdit(L"Encryption data off.\r\n");
-		}
-		if (opt.anti_debug){
-			basic_info.anti_debug = 1;
-			log_file << "Anti-debug active." << std::endl;
-			LogEdit(L"Anti-debug active.\r\n");
-		}
-		else{
-			basic_info.anti_debug = 0;
-			log_file << "Anti-debug off." << std::endl;
-			LogEdit(L"Anti-debug off.\r\n");
-		}
-		//РЎРѕР±РёСЂР°РµРј Р±СѓС„РµСЂ РІРѕРµРґРёРЅРѕ, СЌС‚Рѕ Рё Р±СѓРґСѓС‚
-		//С„РёРЅР°Р»СЊРЅС‹Рµ РґР°РЅРЅС‹Рµ РЅР°С€РµР№ РЅРѕРІРѕР№ СЃРµРєС†РёРё
+		// Шифрование и антидебаг
+		Crypt(basic_info, out_buf);
+		AntiDebug(basic_info);
+		//Собираем буфер воедино, это и будут
+		//финальные данные нашей новой секции
 		out_buf =
-			//Р”Р°РЅРЅС‹Рµ СЃС‚СЂСѓРєС‚СѓСЂС‹ basic_info
+			//Данные структуры basic_info
 			std::string(reinterpret_cast<const char*>(&basic_info), sizeof(basic_info))
-			//Р’С‹С…РѕРґРЅРѕР№ Р±СѓС„РµСЂ
+			//Выходной буфер
 			+ out_buf;
 
-		//РџСЂРѕРІРµСЂРёРј, С‡С‚Рѕ С„Р°Р№Р» СЂРµР°Р»СЊРЅРѕ СЃС‚Р°Р» РјРµРЅСЊС€Рµ
-		if(out_buf.size() >= src_length)
+		//Проверим, что файл реально стал меньше
+		if (out_buf.size() >= src_length)
 		{
-			log_file << "File is incompressible!" << std::endl;
-			LogEdit(L"File is incompressible!\r\n");
-			if (!force_mode)
+			logger.Log(L"File is incompressible!");
+			if (!options.force_mode)
 				return -1;
 		}
 
 
-		//Р•СЃР»Рё С„Р°Р№Р» РёРјРµРµС‚ TLS, РїРѕР»СѓС‡РёРј РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РЅРµРј
+		//Если файл имеет TLS, получим информацию о нем
 		std::auto_ptr<tls_info> tls;
-		if(image.has_tls())
+		if (image.has_tls())
 		{
-			log_file << "Reading TLS..." << std::endl;
-			LogEdit(L"Reading TLS...\r\n");
+			logger.Log(L"Reading TLS...");
 			tls.reset(new tls_info(get_tls_info(image)));
 		}
 
 
-		//Р•СЃР»Рё С„Р°Р№Р» РёРјРµРµС‚ СЌРєСЃРїРѕСЂС‚С‹, РїРѕР»СѓС‡РёРј РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РЅРёС…
-		//Рё РёС… СЃРїРёСЃРѕРє
+		//Если файл имеет экспорты, получим информацию о них
+		//и их список
 		exported_functions_list exports;
 		export_info exports_info;
-		if(image.has_exports())
+		if (image.has_exports())
 		{
-			log_file << "Reading exports..." << std::endl;
-			LogEdit(L"Reading exports...\r\n");
+			logger.Log(L"Reading exports...");
 			exports = get_exported_functions(image, exports_info);
 		}
 
 
-		//Р•СЃР»Рё С„Р°Р№Р» РёРјРµРµС‚ Image Load Config, РїРѕР»СѓС‡РёРј РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РЅРµР№
+		//Если файл имеет Image Load Config, получим информацию о ней
 		std::auto_ptr<image_config_info> load_config;
-		if(image.has_config() && rebuild_load_config)
+		if (image.has_config() && options.rebuild_load_config)
 		{
-			log_file << "Reading Image Load Config..." << std::endl;
-			LogEdit(L"Reading Image Load Config...\r\n");
+			logger.Log(L"Reading Image Load Config...");
 			try
 			{
 				load_config.reset(new image_config_info(get_image_config(image)));
 			}
-			catch(const pe_exception& e)
+			catch (const pe_exception& e)
 			{
 				image.remove_directory(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG);
-				log_file << "Error reading load config directory: " << e.what() << std::endl;
-				LogEdit(L"Reading Image Load Config...\r\n");
+				logger.Log(L"Error reading load config directory: " + Util::StringToWstring(e.what()));
 			}
 		}
 		else
@@ -443,408 +317,405 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 		}
 
 		{
-			//РЎРЅР°С‡Р°Р»Р° РїРѕР»СѓС‡РёРј СЃСЃС‹Р»РєСѓ РЅР° СЃР°РјСЋ РїРµСЂРІСѓСЋ
-			//СЃСѓС‰РµСЃС‚РІСѓСЋС‰СѓСЋ СЃРµРєС†РёСЋ PE-С„Р°Р№Р»Р°
+			//Сначала получим ссылку на самю первую
+			//существующую секцию PE-файла
 			const section& first_section = image.get_image_sections().front();
-			//РЈСЃС‚Р°РЅРѕРІРёРј РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ РґР»СЏ РґРѕР±Р°РІР»СЏРµРјРѕР№ СЃРµРєС†РёРё (С‡РёС‚Р°Р№ РЅРёР¶Рµ)
+			//Установим виртуальный адрес для добавляемой секции (читай ниже)
 			new_section.set_virtual_address(first_section.get_virtual_address());
 
-			//РўРµРїРµСЂСЊ РїРѕР»СѓС‡РёРј СЃСЃС‹Р»РєСѓ РЅР° СЃР°РјСЋ РїРѕСЃР»РµРґРЅСЋСЋ
-			//СЃСѓС‰РµСЃС‚РІСѓСЋС‰СѓСЋ СЃРµРєС†РёСЋ PE-С„Р°Р№Р»Р°
+			//Теперь получим ссылку на самю последнюю
+			//существующую секцию PE-файла
 			const section& last_section = image.get_image_sections().back();
-			//РџРѕСЃС‡РёС‚Р°РµРј РѕР±С‰РёР№ СЂР°Р·РјРµСЂ РІРёСЂС‚СѓР°Р»СЊРЅС‹С… РґР°РЅРЅС‹С…
-			DWORD total_virtual_size = 
-				//Р’РёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ РїРѕСЃР»РµРґРЅРµР№ СЃРµРєС†РёРё
+			//Посчитаем общий размер виртуальных данных
+			DWORD total_virtual_size =
+				//Виртуальный адрес последней секции
 				last_section.get_virtual_address()
-				//Р’С‹СЂРѕРІРЅРµРЅРЅС‹Р№ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ СЂР°Р·РјРµСЂ РїРѕСЃР»РµРґРЅРµР№ СЃРµРєС†РёРё
+				//Выровненный виртуальный размер последней секции
 				+ pe_utils::align_up(last_section.get_virtual_size(), image.get_section_alignment())
-				//РњРёРЅСѓСЃ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ СЂР°Р·РјРµСЂ РїРµСЂРІРѕР№ СЃРµРєС†РёРё
+				//Минус виртуальный размер первой секции
 				- first_section.get_virtual_address();
 
-			//РќРѕРІР°СЏ РїСѓСЃС‚Р°СЏ РєРѕСЂРЅРµРІР°СЏ РґРёСЂРµРєС‚РѕСЂРёСЏ СЂРµСЃСѓСЂСЃРѕРІ
+			//Новая пустая корневая директория ресурсов
 			resource_directory new_root_dir;
 
-			if(image.has_resources() && repack_resources)
+			if (image.has_resources() && options.repack_resources)
 			{
-				log_file << "Repacking resources..." << std::endl;
-				LogEdit(L"Repacking resources...\r\n");
-				//РџРѕР»СѓС‡РёРј СЂРµСЃСѓСЂСЃС‹ РёСЃС…РѕРґРЅРѕРіРѕ С„Р°Р№Р»Р° (РєРѕСЂРЅРµРІСѓСЋ РґРёСЂРµРєС‚РѕСЂРёСЋ)
+				logger.Log(L"Repacking resources...");
+				//Получим ресурсы исходного файла (корневую директорию)
 				resource_directory root_dir = get_resources(image);
-				//РћР±РѕСЂР°С‡РёРІР°РµРј РѕСЂРёРіРёРЅР°Р»СЊРЅСѓСЋ Рё РЅРѕРІСѓСЋ РґРёСЂРµРєС‚РѕСЂРёСЋ СЂРµСЃСѓСЂСЃРѕРІ
-				//РІРѕ РІСЃРїРѕРјРѕРіР°С‚РµР»СЊРЅС‹Рµ РєР»Р°СЃСЃС‹
+				//Оборачиваем оригинальную и новую директорию ресурсов
+				//во вспомогательные классы
 				pe_resource_viewer res(root_dir);
 				pe_resource_manager new_res(new_root_dir);
 
 				try
 				{
-					//РџРµСЂРµС‡РёСЃР»РёРј РІСЃРµ РёРјРµРЅРѕРІР°РЅРЅС‹Рµ РіСЂСѓРїРїС‹ РёРєРѕРЅРѕРє
-					//Рё РіСЂСѓРїРїС‹ РёРєРѕРЅРѕРє, РёРјРµСЋС‰РёРµ ID
+					//Перечислим все именованные группы иконок
+					//и группы иконок, имеющие ID
 					pe_resource_viewer::resource_id_list icon_id_list(res.list_resource_ids(pe_resource_viewer::resource_icon_group));
 					pe_resource_viewer::resource_name_list icon_name_list(res.list_resource_names(pe_resource_viewer::resource_icon_group));
-					//РЎРЅР°С‡Р°Р»Р° РІСЃРµРіРґР° СЂР°СЃРїРѕР»Р°РіР°СЋС‚СЃСЏ РёРјРµРЅРѕРІР°РЅРЅС‹Рµ СЂРµСЃСѓСЂСЃС‹, РїРѕСЌС‚РѕРјСѓ РїСЂРѕРІРµСЂРёРј, РµСЃС‚СЊ Р»Рё РѕРЅРё
-					if(!icon_name_list.empty())
+					//Сначала всегда располагаются именованные ресурсы, поэтому проверим, есть ли они
+					if (!icon_name_list.empty())
 					{
-						//РџРѕР»СѓС‡РёРј СЃР°РјСѓСЋ РїРµСЂРІСѓСЋ РёРєРѕРЅРєСѓ РґР»СЏ СЃР°РјРѕРіРѕ РїРµСЂРІРѕРіРѕ СЏР·С‹РєР° (РїРѕ РёРЅРґРµРєСЃСѓ 0)
-						//Р•СЃР»Рё РЅР°РґРѕ Р±С‹Р»Рѕ Р±С‹ РїРµСЂРµС‡РёСЃР»РёС‚СЊ СЏР·С‹РєРё РґР»СЏ Р·Р°РґР°РЅРЅРѕР№ РёРєРѕРЅРєРё, РјРѕР¶РЅРѕ Р±С‹Р»Рѕ РІС‹Р·РІР°С‚СЊ list_resource_languages
-						//Р•СЃР»Рё РЅР°РґРѕ Р±С‹Р»Рѕ Р±С‹ РїРѕР»СѓС‡РёС‚СЊ РёРєРѕРЅРєСѓ РґР»СЏ РєРѕРЅРєСЂРµС‚РЅРѕРіРѕ СЏР·С‹РєР°, РјРѕР¶РЅРѕ Р±С‹Р»Рѕ РІС‹Р·РІР°С‚СЊ get_icon_by_name (РїРµСЂРµРіСЂСѓР·РєР° СЃ СѓРєР°Р·Р°РЅРёРµРј СЏР·С‹РєР°)
-						//Р”РѕР±Р°РІРёРј РіСЂСѓРїРїСѓ РёРєРѕРЅРѕРє РІ РЅРѕРІСѓСЋ РґРёСЂРµРєС‚РѕСЂРёСЋ СЂРµСЃСѓСЂСЃРѕРІ
+						//Получим самую первую иконку для самого первого языка (по индексу 0)
+						//Если надо было бы перечислить языки для заданной иконки, можно было вызвать list_resource_languages
+						//Если надо было бы получить иконку для конкретного языка, можно было вызвать get_icon_by_name (перегрузка с указанием языка)
+						//Добавим группу иконок в новую директорию ресурсов
 						resource_cursor_icon_writer(new_res).add_icon(
 							resource_cursor_icon_reader(res).get_icon_by_name(icon_name_list[0]),
 							icon_name_list[0],
 							res.list_resource_languages(pe_resource_viewer::resource_icon_group, icon_name_list[0]).at(0));
 					}
-					else if(!icon_id_list.empty()) //Р•СЃР»Рё РЅРµС‚ РёРјРµРЅРѕРІР°РЅРЅС‹С… РіСЂСѓРїРї РёРєРѕРЅРѕРє, РЅРѕ РµСЃС‚СЊ РіСЂСѓРїРїС‹ СЃ ID
+					else if (!icon_id_list.empty()) //Если нет именованных групп иконок, но есть группы с ID
 					{
-						//РџРѕР»СѓС‡РёРј СЃР°РјСѓСЋ РїРµСЂРІСѓСЋ РёРєРѕРЅРєСѓ РґР»СЏ СЃР°РјРѕРіРѕ РїРµСЂРІРѕРіРѕ СЏР·С‹РєР° (РїРѕ РёРЅРґРµРєСЃСѓ 0)
-						//Р•СЃР»Рё РЅР°РґРѕ Р±С‹Р»Рѕ Р±С‹ РїРµСЂРµС‡РёСЃР»РёС‚СЊ СЏР·С‹РєРё РґР»СЏ Р·Р°РґР°РЅРЅРѕР№ РёРєРѕРЅРєРё, РјРѕР¶РЅРѕ Р±С‹Р»Рѕ РІС‹Р·РІР°С‚СЊ list_resource_languages
-						//Р•СЃР»Рё РЅР°РґРѕ Р±С‹Р»Рѕ Р±С‹ РїРѕР»СѓС‡РёС‚СЊ РёРєРѕРЅРєСѓ РґР»СЏ РєРѕРЅРєСЂРµС‚РЅРѕРіРѕ СЏР·С‹РєР°, РјРѕР¶РЅРѕ Р±С‹Р»Рѕ РІС‹Р·РІР°С‚СЊ get_icon_by_id_lang
-						//Р”РѕР±Р°РІРёРј РіСЂСѓРїРїСѓ РёРєРѕРЅРѕРє РІ РЅРѕРІСѓСЋ РґРёСЂРµРєС‚РѕСЂРёСЋ СЂРµСЃСѓСЂСЃРѕРІ
+						//Получим самую первую иконку для самого первого языка (по индексу 0)
+						//Если надо было бы перечислить языки для заданной иконки, можно было вызвать list_resource_languages
+						//Если надо было бы получить иконку для конкретного языка, можно было вызвать get_icon_by_id_lang
+						//Добавим группу иконок в новую директорию ресурсов
 						resource_cursor_icon_writer(new_res).add_icon(
 							resource_cursor_icon_reader(res).get_icon_by_id(icon_id_list[0]),
 							icon_id_list[0],
 							res.list_resource_languages(pe_resource_viewer::resource_icon_group, icon_id_list[0]).at(0));
 					}
 				}
-				catch(const pe_exception&)
+				catch (const pe_exception&)
 				{
-					//Р•СЃР»Рё РєР°РєР°СЏ-С‚Рѕ РѕС€РёР±РєР° СЃ СЂРµСЃСѓСЂСЃР°РјРё, РЅР°РїСЂРёРјРµСЂ, РёРєРѕРЅРѕРє РЅРµС‚,
-					//С‚Рѕ РЅРёС‡РµРіРѕ РЅРµ РґРµР»Р°РµРј
+					//Если какая-то ошибка с ресурсами, например, иконок нет,
+					//то ничего не делаем
 				}
 
 				try
 				{
-					//РџРѕР»СѓС‡РёРј СЃРїРёСЃРѕРє РјР°РЅРёС„РµСЃС‚РѕРІ, РёРјРµСЋС‰РёС… ID
+					//Получим список манифестов, имеющих ID
 					pe_resource_viewer::resource_id_list manifest_id_list(res.list_resource_ids(pe_resource_viewer::resource_manifest));
-					if(!manifest_id_list.empty()) //Р•СЃР»Рё РјР°РЅРёС„РµСЃС‚ РµСЃС‚СЊ
+					if (!manifest_id_list.empty()) //Если манифест есть
 					{
-						//РџРѕР»СѓС‡РёРј СЃР°РјС‹Р№ РїРµСЂРІС‹Р№ РјР°РЅРёС„РµСЃС‚ РґР»СЏ СЃР°РјРѕРіРѕ РїРµСЂРІРѕРіРѕ СЏР·С‹РєР° (РїРѕ РёРЅРґРµРєСЃСѓ 0)
-						//Р”РѕР±Р°РІРёРј РјР°РЅРёС„РµСЃС‚ РІ РЅРѕРІСѓСЋ РґРёСЂРµРєС‚РѕСЂРёСЋ СЂРµСЃСѓСЂСЃРѕРІ
+						//Получим самый первый манифест для самого первого языка (по индексу 0)
+						//Добавим манифест в новую директорию ресурсов
 						new_res.add_resource(
 							res.get_resource_data_by_id(pe_resource_viewer::resource_manifest, manifest_id_list[0]).get_data(),
 							pe_resource_viewer::resource_manifest,
 							manifest_id_list[0],
 							res.list_resource_languages(pe_resource_viewer::resource_manifest, manifest_id_list[0]).at(0)
-							);
+						);
 					}
 				}
-				catch(const pe_exception&)
+				catch (const pe_exception&)
 				{
-					//Р•СЃР»Рё РєР°РєР°СЏ-С‚Рѕ РѕС€РёР±РєР° СЃ СЂРµСЃСѓСЂСЃР°РјРё,
-					//С‚Рѕ РЅРёС‡РµРіРѕ РЅРµ РґРµР»Р°РµРј
+					//Если какая-то ошибка с ресурсами,
+					//то ничего не делаем
 				}
 
 				try
 				{
-					//РџРѕР»СѓС‡РёРј СЃРїРёСЃРѕРє СЃС‚СЂСѓРєС‚СѓСЂ РёРЅС„РѕСЂРјР°С†РёР№ Рѕ РІРµСЂСЃРёРё, РёРјРµСЋС‰РёС… ID
+					//Получим список структур информаций о версии, имеющих ID
 					pe_resource_viewer::resource_id_list version_info_id_list(res.list_resource_ids(pe_resource_viewer::resource_version));
-					if(!version_info_id_list.empty()) //Р•СЃР»Рё РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ РІРµСЂСЃРёРё РµСЃС‚СЊ
+					if (!version_info_id_list.empty()) //Если информация о версии есть
 					{
-						//РџРѕР»СѓС‡РёРј СЃР°РјСѓСЋ РїРµСЂРІСѓСЋ СЃС‚СЂСѓРєС‚СѓСЂСѓ РёРЅС„РѕСЂРјР°С†РёРё Рѕ РІРµСЂСЃРёРё РґР»СЏ СЃР°РјРѕРіРѕ РїРµСЂРІРѕРіРѕ СЏР·С‹РєР° (РїРѕ РёРЅРґРµРєСЃСѓ 0)
-						//Р”РѕР±Р°РІРёРј РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РІРµСЂСЃРёРё РІ РЅРѕРІСѓСЋ РґРёСЂРµРєС‚РѕСЂРёСЋ СЂРµСЃСѓСЂСЃРѕРІ
+						//Получим самую первую структуру информации о версии для самого первого языка (по индексу 0)
+						//Добавим информацию о версии в новую директорию ресурсов
 						new_res.add_resource(
 							res.get_resource_data_by_id(pe_resource_viewer::resource_version, version_info_id_list[0]).get_data(),
 							pe_resource_viewer::resource_version,
 							version_info_id_list[0],
 							res.list_resource_languages(pe_resource_viewer::resource_version, version_info_id_list[0]).at(0)
-							);
+						);
 					}
 				}
-				catch(const pe_exception&)
+				catch (const pe_exception&)
 				{
-					//Р•СЃР»Рё РєР°РєР°СЏ-С‚Рѕ РѕС€РёР±РєР° СЃ СЂРµСЃСѓСЂСЃР°РјРё,
-					//С‚Рѕ РЅРёС‡РµРіРѕ РЅРµ РґРµР»Р°РµРј
+					//Если какая-то ошибка с ресурсами,
+					//то ничего не делаем
 				}
 			}
 
 
-			//РЈРґР°Р»СЏРµРј РІСЃРµ СЃРµРєС†РёРё PE-С„Р°Р№Р»Р°
+			//Удаляем все секции PE-файла
 			image.get_image_sections().clear();
 
-			//РР·РјРµРЅСЏРµРј С„Р°Р№Р»РѕРІРѕРµ РІС‹СЂР°РІРЅРёРІР°РЅРёРµ
-			image.realign_file(file_alignment);
+			//Изменяем файловое выравнивание
+			image.realign_file(options.file_alignment);
 
-			//Р”РѕР±Р°РІР»СЏРµРј РЅР°С€Сѓ СЃРµРєС†РёСЋ Рё РїРѕР»СѓС‡Р°РµРј СЃСЃС‹Р»РєСѓ РЅР°
-			//СѓР¶Рµ РґРѕР±Р°РІР»РµРЅРЅСѓСЋ СЃРµРєС†РёСЋ СЃ РїРµСЂРµСЃС‡РёС‚Р°РЅРЅС‹РјРё Р°РґСЂРµСЃР°РјРё Рё СЂР°Р·РјРµСЂР°РјРё
+			//Добавляем нашу секцию и получаем ссылку на
+			//уже добавленную секцию с пересчитанными адресами и размерами
 			section& added_section = image.add_section(new_section);
-			//РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РґР»СЏ РЅРµРµ РЅРµРѕР±С…РѕРґРёРјС‹Р№ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ СЂР°Р·РјРµСЂ
+			//Устанавливаем для нее необходимый виртуальный размер
 			image.set_section_virtual_size(added_section, total_virtual_size);
 
 
-			log_file << "Creating imports..." << std::endl;
-			LogEdit(L"Creating imports...\r\n");
-			//РЎРѕР·РґР°РµРј РёРјРїРѕСЂС‚С‹ РёР· Р±РёР±Р»РёРѕС‚РµРєРё kernel32.dll
+			logger.Log(L"Creating imports...");
+
+			//Создаем импорты из библиотеки kernel32.dll
 			import_library kernel32;
-			kernel32.set_name("kernel32.dll"); //Р’С‹СЃС‚Р°РІРёР»Рё РёРјСЏ Р±РёР±Р»РёРѕС‚РµРєРё
+			kernel32.set_name("kernel32.dll"); //Выставили имя библиотеки
 
-			//РЎРѕР·РґР°РµРј РёРјРїРѕСЂС‚РёСЂСѓРµРјСѓСЋ С„СѓРЅРєС†РёСЋ
+											   //Создаем импортируемую функцию
 			imported_function func;
-			func.set_name("LoadLibraryA"); //Р•Рµ РёРјСЏ
-			kernel32.add_import(func); //Р”РѕР±Р°РІР»СЏРµРј РµРµ Рє Р±РёР±Р»РёРѕС‚РµРєРµ
+			func.set_name("LoadLibraryA"); //Ее имя
+			kernel32.add_import(func); //Добавляем ее к библиотеке
 
-			//Р РІС‚РѕСЂСѓСЋ С„СѓРЅРєС†РёСЋ
+									   //И вторую функцию
 			func.set_name("GetProcAddress");
-			kernel32.add_import(func); //РўРѕР¶Рµ РґРѕР±Р°РІР»СЏРµРј
+			kernel32.add_import(func); //Тоже добавляем
 
-			//РџРѕР»СѓС‡Р°РµРј РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ Р°РґСЂРµСЃ (RVA) РїРѕР»СЏ load_library_a
-			//РЅР°С€РµР№ СЃС‚СЂСѓРєС‚СѓСЂС‹ packed_file_info, РєРѕС‚РѕСЂСѓСЋ РјС‹ СЂР°СЃРїРѕР»РѕР¶РёР»Рё РІ СЃР°РјРѕРј
-			//РЅР°С‡Р°Р»Рµ РґРѕР±Р°РІР»РµРЅРЅРѕР№ СЃРµРєС†РёРё, РїРѕРјРЅРёС‚Рµ?
+									   //Получаем относительный адрес (RVA) поля load_library_a
+									   //нашей структуры packed_file_info, которую мы расположили в самом
+									   //начале добавленной секции, помните?
 			DWORD load_library_address_rva = pe_base::rva_from_section_offset(added_section,
 				offsetof(packed_file_info, load_library_a));
 
-			//РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј СЌС‚РѕС‚ Р°РґСЂРµСЃ РєР°Рє Р°РґСЂРµСЃ
-			//С‚Р°Р±Р»РёС†С‹ Р°РґСЂРµСЃРѕРІ РёРјРїРѕСЂС‚Р° (import address table)
+			//Устанавливаем этот адрес как адрес
+			//таблицы адресов импорта (import address table)
 			kernel32.set_rva_to_iat(load_library_address_rva);
 
-			//РЎРѕР·РґР°РµРј СЃРїРёСЃРѕРє РёРјРїРѕСЂС‚РёСЂСѓРµРјС‹С… Р±РёР±Р»РёРѕС‚РµРє
+			//Создаем список импортируемых библиотек
 			imported_functions_list imports;
-			//Р”РѕР±Р°РІР»СЏРµРј Рє СЃРїРёСЃРєСѓ РЅР°С€Сѓ Р±РёР±Р»РёРѕС‚РµРєСѓ
+			//Добавляем к списку нашу библиотеку
 			imports.push_back(kernel32);
 
-			//РќР°СЃС‚СЂРѕРёРј РїРµСЂРµСЃР±РѕСЂС‰РёРє РёРјРїРѕСЂС‚РѕРІ
+			//Настроим пересборщик импортов
 			import_rebuilder_settings settings;
-			//Original import address table РЅР°Рј РЅРµ РЅСѓР¶РЅР° (РїРѕСЏСЃРЅРµРЅРёСЏ РЅРёР¶Рµ)
+			//Original import address table нам не нужна (пояснения ниже)
 			settings.build_original_iat(false);
-			//Р‘СѓРґРµРј РїРµСЂРµРїРёСЃС‹РІР°С‚СЊ IAT РёРјРµРЅРЅРѕ РїРѕ С‚РѕРјСѓ Р°РґСЂРµСЃСѓ,
-			//РєРѕС‚РѕСЂРѕРјСѓ СѓРєР°Р·Р°Р»Рё (load_library_address_rva)
+			//Будем переписывать IAT именно по тому адресу,
+			//которому указали (load_library_address_rva)
 			settings.save_iat_and_original_iat_rvas(true, true);
-			//Р Р°СЃРїРѕР»РѕР¶РёРј РёРјРїРѕСЂС‚С‹ РїСЂСЏРјРѕ Р·Р° РєРѕРЅС†РѕРј СѓРїР°РєРѕРІР°РЅРЅС‹С… РґР°РЅРЅС‹С…
+			//Расположим импорты прямо за концом упакованных данных
 			settings.set_offset_from_section_start(added_section.get_raw_data().size());
 
-			//Р•СЃР»Рё Сѓ РЅР°СЃ РµСЃС‚СЊ СЂРµСЃСѓСЂСЃС‹ РґР»СЏ СЃР±РѕСЂРєРё,
-			//РѕС‚РєР»СЋС‡РёРј Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ СѓСЂРµР·Р°РЅРёРµ СЃРµРєС†РёРё РїРѕСЃР»Рµ
-			//РґРѕР±Р°РІР»РµРЅРёСЏ РІ РЅРµРµ РёРјРїРѕСЂС‚РѕРІ
-			if(!new_root_dir.get_entry_list().empty())
+			//Если у нас есть ресурсы для сборки,
+			//отключим автоматическое урезание секции после
+			//добавления в нее импортов
+			if (!new_root_dir.get_entry_list().empty())
 				settings.enable_auto_strip_last_section(false);
 
-			//РџРµСЂРµСЃРѕР±РµСЂРµРј РёРјРїРѕСЂС‚С‹
+			//Пересоберем импорты
 			rebuild_imports(image, imports, added_section, settings);
 
-			//РџРµСЂРµСЃРѕР±РµСЂРµРј СЂРµСЃСѓСЂСЃС‹, РµСЃР»Рё РµСЃС‚СЊ, С‡С‚Рѕ РїРµСЂРµСЃРѕР±РёСЂР°С‚СЊ
-			if(!new_root_dir.get_entry_list().empty())
+			//Пересоберем ресурсы, если есть, что пересобирать
+			if (!new_root_dir.get_entry_list().empty())
 				rebuild_resources(image, new_root_dir, added_section, added_section.get_raw_data().size());
 
 
-			//Р•СЃР»Рё Сѓ С„Р°Р№Р»Р° Р±С‹Р» TLS
-			if(tls.get())
+			//Если у файла был TLS
+			if (tls.get())
 			{
-				//РЈРєР°Р·Р°С‚РµР»СЊ РЅР° РЅР°С€Сѓ СЃС‚СЂСѓРєС‚СѓСЂСѓ СЃ РёРЅС„РѕСЂРјР°С†РёРµР№
-				//РґР»СЏ СЂР°СЃРїР°РєРѕРІС‰РёРєР°
-				//Р­С‚Р° СЃС‚СЂСѓРєС‚СѓСЂР° РІ СЃР°РјРѕРј РЅР°С‡Р°Р»Рµ СЃРІРµР¶РµРґРѕР±Р°РІР»РµРЅРЅРѕР№ СЃРµРєС†РёРё,
-				//РјС‹ РµРµ С‚СѓРґР° РґРѕР±Р°РІРёР»Рё С‡СѓС‚СЊ СЂР°РЅСЊС€Рµ
+				//Указатель на нашу структуру с информацией
+				//для распаковщика
+				//Эта структура в самом начале свежедобавленной секции,
+				//мы ее туда добавили чуть раньше
 				packed_file_info* info = reinterpret_cast<packed_file_info*>(&added_section.get_raw_data()[0]);
 
-				//Р—Р°РїРёС€РµРј РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ
-				//РѕСЂРёРіРёРЅР°Р»СЊРЅРѕРіРѕ TLS
+				//Запишем относительный виртуальный адрес
+				//оригинального TLS
 				info->original_tls_index_rva = tls->get_index_rva();
 
-				//Р•СЃР»Рё Сѓ РЅР°СЃ Р±С‹Р»Рё TLS-РєРѕР»Р»Р±СЌРєРё, Р·Р°РїРёС€РµРј РІ СЃС‚СЂСѓРєС‚СѓСЂСѓ
-				//РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ РёС… РјР°СЃСЃРёРІР° РІ РѕСЂРёРіРёРЅР°Р»СЊРЅРѕРј С„Р°Р№Р»Рµ
-				if(!tls->get_tls_callbacks().empty())
+				//Если у нас были TLS-коллбэки, запишем в структуру
+				//относительный виртуальный адрес их массива в оригинальном файле
+				if (!tls->get_tls_callbacks().empty())
 					info->original_rva_of_tls_callbacks = tls->get_callbacks_rva();
 
-				//РўРµРїРµСЂСЊ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ РёРЅРґРµРєСЃР° TLS
-				//Р±СѓРґРµС‚ РґСЂСѓРіРёРј - РјС‹ Р·Р°СЃС‚Р°РІРёРј Р·Р°РіСЂСѓР·С‡РёРє Р·Р°РїРёСЃР°С‚СЊ РµРіРѕ РІ РїРѕР»Рµ tls_index
-				//СЃС‚СЂСѓРєС‚СѓСЂС‹ packed_file_info
+				//Теперь относительный виртуальный адрес индекса TLS
+				//будет другим - мы заставим загрузчик записать его в поле tls_index
+				//структуры packed_file_info
 				tls->set_index_rva(pe_base::rva_from_section_offset(added_section, offsetof(packed_file_info, tls_index)));
 			}
 		}
 
 
-		//РЎРјРµС‰РµРЅРёРµ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ РЅР°С‡Р°Р»Р° РІС‚РѕСЂРѕР№ СЃРµРєС†РёРё
-		//Рє Р°Р±СЃРѕР»СЋС‚РЅРѕРјСѓ Р°РґСЂРµСЃСѓ TLS-РєРѕР»Р»Р±СЌРєР°
+		//Смещение относительно начала второй секции
+		//к абсолютному адресу TLS-коллбэка
 		DWORD first_callback_offset = 0;
 
 		{
-			//РќРѕРІР°СЏ СЃРµРєС†РёСЏ
+			//Новая секция
 			section unpacker_section;
-			//РРјСЏ 
+			//Имя 
 			unpacker_section.set_name("section");
-			//Р”РѕСЃС‚СѓРїРЅР° РЅР° Р·Р°РїРёСЃСЊ, С‡С‚РµРЅРёРµ Рё РёСЃРїРѕР»РЅРµРЅРёРµ
+			//Доступна на запись, чтение и исполнение
 			unpacker_section.readable(true).executable(true).writeable(true);
 
 			{
-				log_file << "Writing unpacker stub, size = " << sizeof(unpacker_data) << " bytes" << std::endl;
-		    	LogEdit(L"Writing unpacker stub, size = " + std::to_wstring(sizeof(unpacker_data)) +L" bytes\r\n" );
-				
-				//РџРѕР»СѓС‡Р°РµРј СЃСЃС‹Р»РєСѓ РЅР° РґР°РЅРЅС‹Рµ СЃРµРєС†РёРё СЂР°СЃРїР°РєРѕРІС‰РёРєР°
+				logger.Log(L"Writing unpacker stub, size = " + std::to_wstring(sizeof(unpacker_data)) + L" bytes");
+
+				//Получаем ссылку на данные секции распаковщика
 				std::string& unpacker_section_data = unpacker_section.get_raw_data();
-				//Р—Р°РїРёСЃС‹РІР°РµРј С‚СѓРґР° РєРѕРґ СЂР°СЃРїР°РєРѕРІС‰РёРєР°
-				//Р­С‚РѕС‚ РєРѕРґ С…СЂР°РЅРёС‚СЃСЏ РІ Р°РІС‚РѕРіРµРЅРµСЂРµРЅРЅРѕРј С„Р°Р№Р»Рµ
-				//unpacker.h, РєРѕС‚РѕСЂС‹Р№ РјС‹ РїРѕРґРєР»СЋС‡РёР»Рё РІ main.cpp
+				//Записываем туда код распаковщика
+				//Этот код хранится в автогенеренном файле
+				//unpacker.h, который мы подключили в main.cpp
 				unpacker_section_data = std::string(reinterpret_cast<const char*>(unpacker_data), sizeof(unpacker_data));
 
-				//Р—Р°РїРёСЃС‹РІР°РµРј РїРѕ РЅСѓР¶РЅС‹Рј СЃРјРµС‰РµРЅРёСЏРј Р°РґСЂРµСЃ
-				//Р·Р°РіСЂСѓР·РєРё РѕР±СЂР°Р·Р°
+				//Записываем по нужным смещениям адрес
+				//загрузки образа
 				*reinterpret_cast<DWORD*>(&unpacker_section_data[original_image_base_offset]) = image.get_image_base_32();
 				*reinterpret_cast<DWORD*>(&unpacker_section_data[original_image_base_no_fixup_offset]) = image.get_image_base_32();
 
-				//Рё РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ СЃР°РјРѕР№ РїРµСЂРІРѕР№ СЃРµРєС†РёРё СѓРїР°РєРѕРІР°РЅРЅРѕРіРѕ С„Р°Р№Р»Р°,
-				//РІ РєРѕС‚РѕСЂРѕР№ Р»РµР¶Р°С‚ РґР°РЅРЅС‹Рµ РґР»СЏ СЂР°СЃРїР°РєРѕРІРєРё Рё РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ РЅРёС…
-				//Р’ СЃР°РјРѕРј РЅР°С‡Р°Р»Рµ СЌС‚Рѕ СЃРµРєС†РёРё, РєР°Рє РІС‹ РїРѕРјРЅРёС‚Рµ, Р»РµР¶РёС‚
-				//СЃС‚СЂСѓРєС‚СѓСЂР° packed_file_info
+				//и виртуальный адрес самой первой секции упакованного файла,
+				//в которой лежат данные для распаковки и информация о них
+				//В самом начале это секции, как вы помните, лежит
+				//структура packed_file_info
 				*reinterpret_cast<DWORD*>(&unpacker_section_data[rva_of_first_section_offset]) = image.get_image_sections().at(0).get_virtual_address();
 			}
 
-			//Р”РѕР±Р°РІР»СЏРµРј Рё СЌС‚Сѓ СЃРµРєС†РёСЋ
+			//Добавляем и эту секцию
 			section& unpacker_added_section = image.add_section(unpacker_section);
 
-			if(tls.get() || image.has_exports() || image.has_reloc() || load_config.get())
+			if (tls.get() || image.has_exports() || image.has_reloc() || load_config.get())
 			{
-				//РР·РјРµРЅРёРј СЂР°Р·РјРµСЂ РґР°РЅРЅС‹С… СЃРµРєС†РёРё СЂР°СЃРїР°РєРѕРІС‰РёРєР° СЂРѕРІРЅРѕ
-				//РїРѕ РєРѕР»РёС‡РµСЃС‚РІСѓ Р±Р°Р№С‚РѕРІ РІ С‚РµР»Рµ СЂР°СЃРїР°РєРѕРІС‰РёРєР°
-				//(РЅР° СЃР»СѓС‡Р°Р№, РµСЃР»Рё РЅСѓР»РµРІС‹Рµ Р±Р°Р№С‚С‹ СЃ РєРѕРЅС†Р° Р±С‹Р»Рё РѕР±СЂРµР·Р°РЅС‹
-				//Р±РёР±Р»РёРѕС‚РµРєРѕР№ РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ PE)
+				//Изменим размер данных секции распаковщика ровно
+				//по количеству байтов в теле распаковщика
+				//(на случай, если нулевые байты с конца были обрезаны
+				//библиотекой для работы с PE)
 				unpacker_added_section.get_raw_data().resize(sizeof(unpacker_data));
 			}
 
 
-			//Р•СЃР»Рё Сѓ С„Р°Р№Р»Р° РµСЃС‚СЊ TLS
-			if(tls.get())
+			//Если у файла есть TLS
+			if (tls.get())
 			{
-				log_file << "Rebuilding TLS..." << std::endl;
-				LogEdit(L"Rebuilding TLS...\r\n");
-				//РЎСЃС‹Р»РєР° РЅР° СЃС‹СЂС‹Рµ РґР°РЅРЅС‹Рµ СЃРµРєС†РёРё СЂР°СЃРїР°РєРѕРІС‰РёРєР°
-				//РЎРµР№С‡Р°СЃ С‚Р°Рј РµСЃС‚СЊ С‚РѕР»СЊРєРѕ С‚РµР»Рѕ СЂР°СЃРїР°РєРѕРІС‰РёРєР°
+				logger.Log(L"Rebuilding TLS...");
+				//Ссылка на сырые данные секции распаковщика
+				//Сейчас там есть только тело распаковщика
 				std::string& data = unpacker_added_section.get_raw_data();
 
-				//Р’С‹С‡РёСЃР»РёРј РїРѕР·РёС†РёСЋ, РІ РєРѕС‚РѕСЂСѓСЋ Р·Р°РїРёС€РµРј СЃС‚СЂСѓРєС‚СѓСЂСѓ IMAGE_TLS_DIRECTORY32
+				//Вычислим позицию, в которую запишем структуру IMAGE_TLS_DIRECTORY32
 				DWORD directory_pos = data.size();
-				//Р’С‹РґРµР»РёРј РјРµСЃС‚Рѕ РїРѕРґ СЌС‚Сѓ СЃС‚СЂСѓРєС‚СѓСЂСѓ
-				//Р·Р°РїР°СЃ sizeof(DWORD) РЅСѓР¶РµРЅ РґР»СЏ РІС‹СЂР°РІРЅРёРІР°РЅРёСЏ, С‚Р°Рє РєР°Рє
-				//IMAGE_TLS_DIRECTORY32 РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РІС‹СЂРѕРІРЅРµРЅР° 4-Р±Р°Р№С‚РѕРІСѓСЋ РЅР° РіСЂР°РЅРёС†Сѓ
+				//Выделим место под эту структуру
+				//запас sizeof(DWORD) нужен для выравнивания, так как
+				//IMAGE_TLS_DIRECTORY32 должна быть выровнена 4-байтовую на границу
 				data.resize(data.size() + sizeof(IMAGE_TLS_DIRECTORY32) + sizeof(DWORD));
 
-				//Р•СЃР»Рё Сѓ TLS РµСЃС‚СЊ РєРѕР»Р»Р±СЌРєРё...
-				if(!tls->get_tls_callbacks().empty())
+				//Если у TLS есть коллбэки...
+				if (!tls->get_tls_callbacks().empty())
 				{
-					//РќРµРѕР±С…РѕРґРёРјРѕ Р·Р°СЂРµР·РµСЂРІРёСЂРѕРІР°С‚СЊ РјРµСЃС‚Рѕ
-					//РїРѕРґ РѕСЂРёРіРёРЅР°Р»СЊРЅС‹Рµ TLS-РєРѕР»Р»Р±СЌРєРё
-					//РџР»СЋСЃ 1 СЏС‡РµР№РєР° РїРѕРґ РЅСѓР»РµРІРѕР№ DWORD
+					//Необходимо зарезервировать место
+					//под оригинальные TLS-коллбэки
+					//Плюс 1 ячейка под нулевой DWORD
 					first_callback_offset = data.size();
 					data.resize(data.size() + sizeof(DWORD) * (tls->get_tls_callbacks().size() + 1));
 
-					//РџРµСЂРІС‹Р№ РєРѕР»Р»Р±СЌРє Р±СѓРґРµС‚ РЅР°С€РёРј РїСѓСЃС‚С‹Рј (ret 0xC),
-					//Р·Р°РїРёС€РµРј РµРіРѕ Р°РґСЂРµСЃ
+					//Первый коллбэк будет нашим пустым (ret 0xC),
+					//запишем его адрес
 					*reinterpret_cast<DWORD*>(&data[first_callback_offset]) =
 						image.rva_to_va_32(pe_base::rva_from_section_offset(unpacker_added_section, empty_tls_callback_offset));
 
-					//Р—Р°РїРёС€РµРј РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ
-					//РЅРѕРІРѕР№ С‚Р°Р±Р»РёС†С‹ TLS-РєРѕР»Р»Р±СЌРєРѕРІ
+					//Запишем относительный виртуальный адрес
+					//новой таблицы TLS-коллбэков
 					tls->set_callbacks_rva(pe_base::rva_from_section_offset(unpacker_added_section, first_callback_offset));
 
-					//РўРµРїРµСЂСЊ Р·Р°РїРёС€РµРј РІ СЃС‚СЂСѓРєС‚СѓСЂСѓ packed_file_info, РєРѕС‚РѕСЂСѓСЋ РјС‹
-					//Р·Р°РїРёСЃР°Р»Рё РІ СЃР°РјРѕРµ РЅР°С‡Р°Р»Рѕ РїРµСЂРІРѕР№ СЃРµРєС†РёРё,
-					//РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ Р°РґСЂРµСЃ РЅРѕРІРѕР№ С‚Р°Р±Р»РёС†С‹ РєРѕР»Р»Р±СЌРєРѕРІ
+					//Теперь запишем в структуру packed_file_info, которую мы
+					//записали в самое начало первой секции,
+					//относительный адрес новой таблицы коллбэков
 					reinterpret_cast<packed_file_info*>(&image.get_image_sections().at(0).get_raw_data()[0])->new_rva_of_tls_callbacks = tls->get_callbacks_rva();
 				}
 				else
 				{
-					//Р•СЃР»Рё РЅРµС‚ РєРѕР»Р»Р±СЌРєРѕРІ, РЅР° РІСЃСЏРєРёР№ СЃР»СѓС‡Р°Р№ РѕР±РЅСѓР»РёРј Р°РґСЂРµСЃ
+					//Если нет коллбэков, на всякий случай обнулим адрес
 					tls->set_callbacks_rva(0);
 				}
 
-				//РћС‡РёСЃС‚РёРј РјР°СЃСЃРёРІ РєРѕР»Р»Р±СЌРєРѕРІ, РѕРЅРё РЅР°Рј Р±РѕР»СЊС€Рµ РЅРµ РЅСѓР¶РЅС‹
-				//РњС‹ РёС… СЃРґРµР»Р°Р»Рё РІСЂСѓС‡РЅСѓСЋ
+				//Очистим массив коллбэков, они нам больше не нужны
+				//Мы их сделали вручную
 				tls->clear_tls_callbacks();
 
-				//РЈСЃС‚Р°РЅРѕРІРёРј РЅРѕРІС‹Р№ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ Р°РґСЂРµСЃ
-				//РґР°РЅРЅС‹С… РґР»СЏ РёРЅРёС†РёР°Р»РёР·Р°С†РёРё Р»РѕРєР°Р»СЊРЅРѕР№ РїР°РјСЏС‚Рё РїРѕС‚РѕРєР°
+				//Установим новый относительный адрес
+				//данных для инициализации локальной памяти потока
 				tls->set_raw_data_start_rva(pe_base::rva_from_section_offset(unpacker_added_section, data.size()));
-				//РџРµСЂРµСЃС‡РёС‚С‹РІР°РµРј Р°РґСЂРµСЃ РєРѕРЅС†Р° СЌС‚РёС… РґР°РЅРЅС‹С…
+				//Пересчитываем адрес конца этих данных
 				tls->recalc_raw_data_end_rva();
 
-				//РџРµСЂРµСЃРѕР±РёСЂР°РµРј TLS
-				//РЈРєР°Р·С‹РІР°РµРј РїРµСЂРµСЃР±РѕСЂС‰РёРєСѓ, С‡С‚Рѕ РЅРµ РЅСѓР¶РЅРѕ РїРёСЃР°С‚СЊ РґР°РЅРЅС‹Рµ Рё РєРѕР»Р»Р±СЌРєРё
-				//РњС‹ СЃРґРµР»Р°РµРј СЌС‚Рѕ РІСЂСѓС‡РЅСѓСЋ (РєРѕР»Р»Р±СЌРєРё СѓР¶Рµ Р·Р°РїРёСЃР°Р»Рё, РєСѓРґР° РЅР°РґРѕ)
-				//РўР°РєР¶Рµ СѓРєР°Р·С‹РІР°РµРј, С‡С‚Рѕ РЅРµ РЅСѓР¶РЅРѕ РѕР±СЂРµР·Р°С‚СЊ РЅСѓР»РµРІС‹Рµ Р±Р°Р№С‚С‹ РІ РєРѕРЅС†Рµ СЃРµРєС†РёРё
+				//Пересобираем TLS
+				//Указываем пересборщику, что не нужно писать данные и коллбэки
+				//Мы сделаем это вручную (коллбэки уже записали, куда надо)
+				//Также указываем, что не нужно обрезать нулевые байты в конце секции
 				rebuild_tls(image, *tls, unpacker_added_section, directory_pos, false, false, tls_data_expand_raw, true, false);
 
-				//Р”РѕРїРѕР»РЅСЏРµРј СЃРµРєС†РёСЋ РґР°РЅРЅС‹РјРё РґР»СЏ РёРЅРёС†РёР°Р»РёР·Р°С†РёРё
-				//Р»РѕРєР°Р»СЊРЅРѕР№ РїР°РјСЏС‚Рё РїРѕС‚РѕРєР°
+				//Дополняем секцию данными для инициализации
+				//локальной памяти потока
 				unpacker_added_section.get_raw_data() += tls->get_raw_data();
-				//РўРµРїРµСЂСЊ СѓСЃС‚Р°РЅРѕРІРёРј РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ СЂР°Р·РјРµСЂ РґРѕР±Р°РІР»РµРЅРЅРѕР№ СЃРµРєС†РёРё 
-				//СЃ СѓС‡РµС‚РѕРј SizeOfZeroFill РїРѕР»СЏ TLS
+				//Теперь установим виртуальный размер добавленной секции 
+				//с учетом SizeOfZeroFill поля TLS
 				image.set_section_virtual_size(unpacker_added_section, data.size() + tls->get_size_of_zero_fill());
 
-				//РќР°РєРѕРЅРµС†, РѕР±СЂРµР¶РµРј СѓР¶Рµ РЅРµРЅСѓР¶РЅС‹Рµ РЅСѓР»РµРІС‹Рµ Р±Р°Р№С‚С‹ СЃ РєРѕРЅС†Р° СЃРµРєС†РёРё
-				if(!image.has_reloc() && !image.has_exports() && !load_config.get())
+				//Наконец, обрежем уже ненужные нулевые байты с конца секции
+				if (!image.has_reloc() && !image.has_exports() && !load_config.get())
 					pe_utils::strip_nullbytes(unpacker_added_section.get_raw_data());
 
-				//Рё РїРµСЂРµСЃС‡РёС‚Р°РµРј РµРµ СЂР°Р·РјРµСЂС‹ (С„РёР·РёС‡РµСЃРєРёР№ Рё РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№)
+				//и пересчитаем ее размеры (физический и виртуальный)
 				image.prepare_section(unpacker_added_section);
 			}
 
 
-			//Р’С‹СЃС‚Р°РІР»СЏРµРј РЅРѕРІСѓСЋ С‚РѕС‡РєСѓ РІС…РѕРґР° - С‚РµРїРµСЂСЊ РѕРЅР° СѓРєР°Р·С‹РІР°РµС‚
-			//РЅР° СЂР°СЃРїР°РєРѕРІС‰РёРє, РЅР° СЃР°РјРѕРµ РµРіРѕ РЅР°С‡Р°Р»Рѕ
-			image.set_ep(image.rva_from_section_offset(unpacker_added_section, 0) + 0x5C); //0x5c РЎРјРµС‰РµРЅРёРµ РѕС‚ РЅР°С‡Р°Р»Р°
+			//Выставляем новую точку входа - теперь она указывает
+			//на распаковщик, на самое его начало
+			image.set_ep(image.rva_from_section_offset(unpacker_added_section, 0) + 0x5C); //0x5c Смещение от начала
 		}
 
-		if(load_config.get())
+		if (load_config.get())
 		{
-			log_file << "Repacking load configuration..." << std::endl;
-			LogEdit(L"Repacking load configuration...\r\n");
+			logger.Log(L"Repacking load configuration...");
+
 			section& unpacker_section = image.get_image_sections().at(1);
 
-			//РћР±РЅСѓР»РёРј С‚Р°Р±Р»РёС†Сѓ Р°РґСЂРµСЃРѕРІ Lock-РїСЂРµС„РёРєСЃРѕРІ
+			//Обнулим таблицу адресов Lock-префиксов
 			load_config->clear_lock_prefix_list();
 			load_config->add_lock_prefix_rva(pe_base::rva_from_section_offset(image.get_image_sections().at(0), offsetof(packed_file_info, lock_opcode)));
 
-			//РџРµСЂРµСЃРѕР±РёСЂР°РµРј РґРёСЂРµРєС‚РѕСЂРёСЋ РєРѕРЅС„РёРіСѓСЂР°С†РёРё Р·Р°РіСЂСѓР·РєРё Рё СЂР°СЃРїРѕР»Р°РіР°РµРј РµРµ РІ СЃРµРєС†РёРё
-			//РџРµСЂРµСЃРѕР±РёСЂР°РµРј Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё С‚Р°Р±Р»РёС†Сѓ SE Handler'РѕРІ, Р° РІРѕС‚ С‚Р°Р±Р»РёС†Сѓ Lock-РїСЂРµС„РёРєСЃРѕРІ РЅРµ СЃРѕР·РґР°РµРј
+			//Пересобираем директорию конфигурации загрузки и располагаем ее в секции
+			//Пересобираем автоматически таблицу SE Handler'ов, а вот таблицу Lock-префиксов не создаем
 			rebuild_image_config(image, *load_config, unpacker_section, unpacker_section.get_raw_data().size(), true, true, true, !image.has_reloc() && !image.has_exports());
 		}
 
-		//Р•СЃР»Рё Сѓ С„Р°Р№Р»Р° РµСЃС‚СЊ СЂРµР»РѕРєР°С†РёРё
-		if(image.has_reloc())
+		//Если у файла есть релокации
+		if (image.has_reloc())
 		{
-			log_file << "Creating relocations..." << std::endl;
-			LogEdit(L"Creating relocations...\r\n");
-			//РЎРѕР·РґР°РµРј СЃРїРёСЃРѕРє С‚Р°Р±Р»РёС† СЂРµР»РѕРєР°С†РёР№ Рё РµРґРёРЅСЃС‚РІРµРЅРЅСѓСЋ С‚Р°Р±Р»РёС†Сѓ
+			logger.Log(L"Creating relocations...");
+
+			//Создаем список таблиц релокаций и единственную таблицу
 			relocation_table_list reloc_tables;
 
 			section& unpacker_section = image.get_image_sections().at(1);
 
 			{
 				relocation_table table;
-				//РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РІРёСЂС‚СѓР°Р»СЊРЅС‹Р№ Р°РґСЂРµСЃ С‚Р°Р±Р»РёС†С‹ СЂРµР»РѕРєР°С†РёР№
-				//РћРЅ Р±СѓРґРµС‚ СЂР°РІРµРЅ РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕРјСѓ РІРёСЂС‚СѓР°Р»СЊРЅРѕРјСѓ Р°РґСЂРµСЃСѓ РІС‚РѕСЂРѕР№ РґРѕР±Р°РІР»РµРЅРЅРѕР№
-				//СЃРµРєС†РёРё, С‚Р°Рє РєР°Рє РёРјРµРЅРЅРѕ РІ РЅРµР№ РЅР°С…РѕРґРёС‚СЃСЏ РєРѕРґ СЂР°СЃРїР°РєРѕРІС‰РёРєР°
-				//СЃ РїРµСЂРµРјРµРЅРЅРѕР№, РєРѕС‚РѕСЂСѓСЋ РјС‹ Р±СѓРґРµРј С„РёРєСЃРёС‚СЊ
+				//Устанавливаем виртуальный адрес таблицы релокаций
+				//Он будет равен относительному виртуальному адресу второй добавленной
+				//секции, так как именно в ней находится код распаковщика
+				//с переменной, которую мы будем фиксить
 				table.set_rva(unpacker_section.get_virtual_address());
 
-				//Р”РѕР±Р°РІР»СЏРµРј СЂРµР»РѕРєР°С†РёСЋ РїРѕ СЃРјРµС‰РµРЅРёСЋ original_image_base_offset РёР·
-				//С„Р°Р№Р»Р° parameters.h СЂР°СЃРїР°РєРѕРІС‰РёРєР°
+				//Добавляем релокацию по смещению original_image_base_offset из
+				//файла parameters.h распаковщика
 				table.add_relocation(relocation_entry(original_image_base_offset, IMAGE_REL_BASED_HIGHLOW));
 
-				//Р”РѕР±Р°РІР»СЏРµРј С‚Р°Р±Р»РёС†Сѓ РІ СЃРїРёСЃРѕРє С‚Р°Р±Р»РёС†
+				//Добавляем таблицу в список таблиц
 				reloc_tables.push_back(table);
 			}
 
-			//Р•СЃР»Рё Сѓ С„Р°Р№Р»Р° Р±С‹Р» TLS
-			if(tls.get())
+			//Если у файла был TLS
+			if (tls.get())
 			{
-				//РџСЂРѕСЃС‡РёС‚Р°РµРј СЃРјРµС‰РµРЅРёРµ Рє СЃС‚СЂСѓРєС‚СѓСЂРµ TLS
-				//РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ РЅР°С‡Р°Р»Р° РІС‚РѕСЂРѕР№ СЃРµРєС†РёРё
+				//Просчитаем смещение к структуре TLS
+				//относительно начала второй секции
 				DWORD tls_directory_offset = image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_TLS)
 					- image.section_from_directory(IMAGE_DIRECTORY_ENTRY_TLS).get_virtual_address();
-				
-				//РЎРѕР·РґР°РµРј РЅРѕРІСѓСЋ С‚Р°Р±Р»РёС†Сѓ СЂРµР»РѕРєР°С†РёРё, С‚Р°Рє РєР°Рє РѕР±Р»Р°СЃС‚СЊ СЃ С‚Р°Р±Р»РёС†РµР№ TLS РјРѕР¶РµС‚ Р±С‹С‚СЊ СЃРёР»СЊРЅРѕ СѓРґР°Р»РµРЅР°
-				//РѕС‚ original_image_base_offset
+
+				//Создаем новую таблицу релокации, так как область с таблицей TLS может быть сильно удалена
+				//от original_image_base_offset
 				relocation_table table;
 				table.set_rva(image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_TLS));
-				//Р”РѕР±Р°РІРёРј СЂРµР»РѕРєР°С†РёРё РґР»СЏ РїРѕР»РµР№ StartAddressOfRawData,
-				//EndAddressOfRawData Рё AddressOfIndex
-				//Р­С‚Рё РїРѕР»СЏ Сѓ РЅР°СЃ РІСЃРµРіРґР° РЅРµРЅСѓР»РµРІС‹Рµ
+				//Добавим релокации для полей StartAddressOfRawData,
+				//EndAddressOfRawData и AddressOfIndex
+				//Эти поля у нас всегда ненулевые
 				table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_TLS_DIRECTORY32, StartAddressOfRawData)), IMAGE_REL_BASED_HIGHLOW));
 				table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_TLS_DIRECTORY32, EndAddressOfRawData)), IMAGE_REL_BASED_HIGHLOW));
 				table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_TLS_DIRECTORY32, AddressOfIndex)), IMAGE_REL_BASED_HIGHLOW));
 
-				//Р•СЃР»Рё РёРјРµСЋС‚СЃСЏ TLS-РєРѕР»Р»Р±СЌРєРё
-				if(first_callback_offset)
+				//Если имеются TLS-коллбэки
+				if (first_callback_offset)
 				{
-					//РўРѕ РґРѕР±Р°РІРёРј РµС‰Рµ СЂРµР»РѕРєР°С†РёРё РґР»СЏ РїРѕР»СЏ AddressOfCallBacks
-					//Рё РґР»СЏ Р°РґСЂРµСЃР° РЅР°С€РµРіРѕ РїСѓСЃС‚РѕРіРѕ РєРѕР»Р»Р±СЌРєР°
+					//То добавим еще релокации для поля AddressOfCallBacks
+					//и для адреса нашего пустого коллбэка
 					table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_TLS_DIRECTORY32, AddressOfCallBacks)), IMAGE_REL_BASED_HIGHLOW));
 					table.add_relocation(relocation_entry(static_cast<WORD>(tls->get_callbacks_rva() - table.get_rva()), IMAGE_REL_BASED_HIGHLOW));
 				}
@@ -852,56 +723,55 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 				reloc_tables.push_back(table);
 			}
 
-			if(load_config.get())
+			if (load_config.get())
 			{
-				//Р•СЃР»Рё С„Р°Р№Р» РёРјРµРµС‚ IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG, С‚Рѕ СЃР»РµРґСѓРµС‚ РґРѕР±Р°РІРёС‚СЊ РЅРµРѕР±С…РѕРґРёРјС‹Рµ СЂРµР»РѕРєР°С†РёРё РґР»СЏ РЅРµРµ,
-				//РїРѕС‚РѕРјСѓ С‡С‚Рѕ РѕРЅР° РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ Р·Р°РіСЂСѓР·С‡РёРєРѕРј РЅР° СЌС‚Р°РїРµ Р·Р°РіСЂСѓР·РєРё PE-С„Р°Р№Р»Р°
+				//Если файл имеет IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG, то следует добавить необходимые релокации для нее,
+				//потому что она используется загрузчиком на этапе загрузки PE-файла
 				DWORD config_directory_offset = image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG)
 					- image.section_from_directory(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG).get_virtual_address();
 
-				//РЎРѕР·РґР°РµРј РЅРѕРІСѓСЋ С‚Р°Р±Р»РёС†Сѓ СЂРµР»РѕРєР°С†РёРё, С‚Р°Рє РєР°Рє РѕР±Р»Р°СЃС‚СЊ СЃ С‚Р°Р±Р»РёС†РµР№ TLS РјРѕР¶РµС‚ Р±С‹С‚СЊ СЃРёР»СЊРЅРѕ СѓРґР°Р»РµРЅР°
-				//РѕС‚ original_image_base_offset РёР»Рё TLS
+				//Создаем новую таблицу релокации, так как область с таблицей TLS может быть сильно удалена
+				//от original_image_base_offset или TLS
 				relocation_table table;
 				table.set_rva(image.get_directory_rva(IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG));
 
-				if(load_config->get_security_cookie_va())
+				if (load_config->get_security_cookie_va())
 					table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, SecurityCookie)), IMAGE_REL_BASED_HIGHLOW));
 
-				if(load_config->get_se_handler_table_va())
+				if (load_config->get_se_handler_table_va())
 					table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, SEHandlerTable)), IMAGE_REL_BASED_HIGHLOW));
 
 				table.add_relocation(relocation_entry(static_cast<WORD>(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY32, LockPrefixTable)), IMAGE_REL_BASED_HIGHLOW));
 				reloc_tables.push_back(table);
 			}
 
-			//РџРµСЂРµСЃРѕР±РёСЂР°РµРј СЂРµР»РѕРєР°С†РёРё, СЂР°СЃРїРѕР»Р°РіР°СЏ РёС… РІ РєРѕРЅС†Рµ
-			//СЃРµРєС†РёРё СЃ РєРѕРґРѕРј СЂР°СЃРїР°РєРѕРІС‰РёРєР°
+			//Пересобираем релокации, располагая их в конце
+			//секции с кодом распаковщика
 			rebuild_relocations(image, reloc_tables, unpacker_section, unpacker_section.get_raw_data().size(), true, !image.has_exports());
 		}
 
-		if(image.has_exports())
+		if (image.has_exports())
 		{
-			log_file << "Repacking exports..." << std::endl;
-			LogEdit(L"Repacking exports...\r\n");
+			logger.Log(L"Repacking exports...");
 			section& unpacker_section = image.get_image_sections().at(1);
 
-			//РџРµСЂРµСЃРѕР±РёСЂР°РµРј СЌРєСЃРїРѕСЂС‚С‹ Рё СЂР°СЃРїРѕР»Р°РіР°РµРј РёС… РІ СЃРµРєС†РёРё 
+			//Пересобираем экспорты и располагаем их в секции 
 			rebuild_exports(image, exports_info, exports, unpacker_section, unpacker_section.get_raw_data().size(), true);
 		}
 
-		//РЈРґР°Р»РёРј РІСЃРµ С‡Р°СЃС‚Рѕ РёСЃРїРѕР»СЊР·СѓРµРјС‹Рµ РґРёСЂРµРєС‚РѕСЂРёРё
-		//Р’ РґР°Р»СЊРЅРµР№С€РµРј РјС‹ Р±СѓРґРµРј РёС… РІРѕР·РІСЂР°С‰Р°С‚СЊ РѕР±СЂР°С‚РЅРѕ
-		//Рё РєРѕСЂСЂРµРєС‚РЅРѕ РѕР±СЂР°Р±Р°С‚С‹РІР°С‚СЊ, РЅРѕ РїРѕРєР° С‚Р°Рє
+		//Удалим все часто используемые директории
+		//В дальнейшем мы будем их возвращать обратно
+		//и корректно обрабатывать, но пока так
 		image.remove_directory(IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT);
 		image.remove_directory(IMAGE_DIRECTORY_ENTRY_IAT);
 		image.remove_directory(IMAGE_DIRECTORY_ENTRY_SECURITY);
 		image.remove_directory(IMAGE_DIRECTORY_ENTRY_DEBUG);
 
-		//РЈСЂРµР·Р°РµРј С‚Р°Р±Р»РёС†Сѓ РґРёСЂРµРєС‚РѕСЂРёР№, СѓРґР°Р»СЏСЏ РІСЃРµ РЅСѓР»РµРІС‹Рµ
-		//РЈСЂРµР·Р°РµРј РЅРµ РїРѕР»РЅРѕСЃС‚СЊСЋ, Р° РјРёРЅРёРјСѓРј РґРѕ 12 СЌР»РµРјРµРЅС‚РѕРІ, С‚Р°Рє РєР°Рє РІ РѕСЂРёРіРёРЅР°Р»СЊРЅРѕРј
-		//С„Р°Р№Р»Рµ РјРѕРіСѓС‚ РїСЂРёСЃСѓС‚СЃС‚РІРѕРІР°С‚СЊ РїРµСЂРІС‹Рµ 12 Рё РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊСЃСЏ
-		//image.strip_data_directories(16 - 4); //Р—Р°РєРѕРјРјРµРЅС‚РёСЂРѕРІР°Р»Рё РёР·-Р·Р° РЅРµРїРµСЂРµРЅРѕСЃРёРјРѕСЃС‚Рё РІ WinXP
-		//РЈРґР°Р»СЏРµРј СЃС‚Р°Р± РёР· Р·Р°РіРѕР»РѕРІРєР°, РµСЃР»Рё РєР°РєРѕР№-С‚Рѕ Р±С‹Р»
+		//Урезаем таблицу директорий, удаляя все нулевые
+		//Урезаем не полностью, а минимум до 12 элементов, так как в оригинальном
+		//файле могут присутствовать первые 12 и использоваться
+		//image.strip_data_directories(16 - 4); //Закомментировали из-за непереносимости в WinXP
+		//Удаляем стаб из заголовка, если какой-то был
 		image.strip_stub_overlay();
 
 
@@ -909,20 +779,20 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 
 		if (output_file_name.empty())
 		{
-			//РЎРѕР·РґР°РµРј РЅРѕРІС‹Р№ PE-С„Р°Р№Р»
-			//Р’С‹С‡РёСЃР»РёРј РёРјСЏ РїРµСЂРµРґР°РЅРЅРѕРіРѕ РЅР°Рј С„Р°Р№Р»Р° Р±РµР· РґРёСЂРµРєС‚РѕСЂРёРё
+			//Создаем новый PE-файл
+			//Вычислим имя переданного нам файла без директории
 			base_file_name = input_file_name;
 			std::wstring dir_name;
 			std::wstring::size_type slash_pos;
 			if ((slash_pos = base_file_name.find_last_of(L"/\\")) != std::string::npos)
 			{
-				dir_name = base_file_name.substr(0, slash_pos + 1); //Р”РёСЂРµРєС‚РѕСЂРёСЏ РёСЃС…РѕРґРЅРѕРіРѕ С„Р°Р№Р»Р°
-				base_file_name = base_file_name.substr(slash_pos + 1); //РРјСЏ РёСЃС…РѕРґРЅРѕРіРѕ С„Р°Р№Р»Р°
+				dir_name = base_file_name.substr(0, slash_pos + 1); //Директория исходного файла
+				base_file_name = base_file_name.substr(slash_pos + 1); //Имя исходного файла
 			}
 
-			//Р”Р°РґРёРј РЅРѕРІРѕРјСѓ С„Р°Р№Р»Сѓ РёРјСЏ packed_ + РёРјСЏ_РѕСЂРёРіРёРЅР°Р»СЊРЅРѕРіРѕ_С„Р°Р№Р»Р°
-			//Р’РµСЂРЅРµРј Рє РЅРµРјСѓ РёСЃС…РѕРґРЅСѓСЋ РґРёСЂРµРєС‚РѕСЂРёСЋ, С‡С‚РѕР±С‹ СЃРѕС…СЂР°РЅРёС‚СЊ
-			//С„Р°Р№Р» С‚СѓРґР°, РіРґРµ Р»РµР¶РёС‚ РѕСЂРёРіРёРЅР°Р»
+			//Дадим новому файлу имя packed_ + имя_оригинального_файла
+			//Вернем к нему исходную директорию, чтобы сохранить
+			//файл туда, где лежит оригинал
 			base_file_name = dir_name + L"packed_" + base_file_name;
 		}
 		else
@@ -931,38 +801,76 @@ int protect(WCHAR * inFile, WCHAR * outFile, WCHAR * logFile, options opt)
 		}
 
 
-		//РЎРѕР·РґР°РґРёРј С„Р°Р№Р»
+		//Создадим файл
 		std::ofstream new_pe_file(base_file_name.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
 		if (!new_pe_file)
 		{
-			//Р•СЃР»Рё РЅРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ С„Р°Р№Р» - РІС‹РІРµРґРµРј РѕС€РёР±РєСѓ
-			log_file << "Cannot create " << to_utf8(base_file_name) << std::endl;
-			LogEdit(L"Cannot create " + base_file_name + L"\r\n");
+			//Если не удалось создать файл - выведем ошибку
+			logger.Log(L"Cannot create " + base_file_name);
 			return -1;
 		}
 
-		//РџРµСЂРµСЃРѕР±РёСЂР°РµРј PE-РѕР±СЂР°Р·
-		//РЈСЂРµР·Р°РµРј DOS-Р·Р°РіРѕР»РѕРІРѕРє, РЅР°РєР»Р°РґС‹РІР°СЏ РЅР° РЅРµРіРѕ NT-Р·Р°РіРѕР»РѕРІРєРё
-		//(Р·Р° СЌС‚Рѕ РѕС‚РІРµС‡Р°РµС‚ РІС‚РѕСЂРѕР№ РїР°СЂР°РјРµС‚СЂ true)
-		//РќРµ РїРµСЂРµСЃС‡РёС‚С‹РІР°РµРј SizeOfHeaders - Р·Р° СЌС‚Рѕ РѕС‚РІРµС‡Р°РµС‚ С‚СЂРµС‚РёР№ РїР°СЂР°РјРµС‚СЂ
-		rebuild_pe(image, new_pe_file, strip_dos_headers, false);
+		//Пересобираем PE-образ
+		//Урезаем DOS-заголовок, накладывая на него NT-заголовки
+		//(за это отвечает второй параметр true)
+		//Не пересчитываем SizeOfHeaders - за это отвечает третий параметр
+		rebuild_pe(image, new_pe_file, options.strip_dos_headers, false);
 
-		//РћРїРѕРІРµСЃС‚РёРј РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ, С‡С‚Рѕ С„Р°Р№Р» СѓРїР°РєРѕРІР°РЅ СѓСЃРїРµС€РЅРѕ
-		log_file << "Packed image was saved to " << to_utf8(base_file_name) << std::endl;
-		LogEdit(L"Packed image was saved to " + base_file_name + L"\r\n");
-		log_file << "Resulting sections entropy: " << entropy_calculator::calculate_entropy(image) << std::endl;	
-		LogEdit(L"Packed image was saved to " + std::to_wstring(entropy_calculator::calculate_entropy(image)) + L"\r\n");
-		log_file << "Finished in " << pack_timer.elapsed() << " sec" << std::endl;
-		LogEdit(L"Finished in " + std::to_wstring(pack_timer.elapsed()) + L" sec\r\n");
+		//Оповестим пользователя, что файл упакован успешно
+		logger.Log(L"Packed image was saved to " + base_file_name);
+		logger.Log(L"Resulting sections entropy: " + std::to_wstring(entropy_calculator::calculate_entropy(image)));
+		logger.Log(L"Finished in " + std::to_wstring(pack_timer.elapsed()));
 	}
 	catch (const pe_exception& e)
 	{
-		//Р•СЃР»Рё РїРѕ РєР°РєРѕР№-С‚Рѕ РїСЂРёС‡РёРЅРµ РѕС‚РєСЂС‹С‚СЊ РµРіРѕ РЅРµ СѓРґР°Р»РѕСЃСЊ
-		//Р’С‹РІРµРґРµРј С‚РµРєСЃС‚ РѕС€РёР±РєРё Рё РІС‹Р№РґРµРј
-		log_file << "Error: " << e.what() << std::endl;
-		LogEdit(L"Error\r\n");
+		//Если по какой-то причине открыть его не удалось
+		//Выведем текст ошибки и выйдем
+		logger.Log(L"Error: " + Util::StringToWstring(e.what()));
 		return -1;
 	}
-	log_file.close();
 	return 0;
+}
+
+void Protector::AntiDebug(packed_file_info &basic_info)
+{
+	if (options.anti_debug) {
+		basic_info.anti_debug = 1;
+		logger.Log(L"Anti-debug active.");
+	}
+	else {
+		basic_info.anti_debug = 0;
+		logger.Log(L"Anti-debug off.");
+	}
+}
+
+void Protector::Crypt(packed_file_info &basic_info, std::string & out_buf)
+{
+	if (options.crypt) {
+		logger.Log(L"Encryption data...");
+		const int key_len = 16;
+		unsigned char key[key_len] = { 110, 36, 2, 15, 3, 17, 24, 23, 18, 45, 1, 21, 122, 16, 3, 12 };
+		//RC5
+		if (options.rc5) {
+			logger.Log(L"RC5");
+			Rc5 rc5;
+			srand(time(0));
+			unsigned long int iv[2] = { rand(), rand() };
+			basic_info.iv1 = iv[0];
+			basic_info.iv2 = iv[1];
+			basic_info.size_of_crypted_data = rc5.Crypt(out_buf, key, iv);
+			basic_info.crypt_mode = 2;
+		}
+		else {	// XOR							
+			logger.Log(L"XOR");
+			Xor xor;
+			basic_info.size_of_crypted_data = xor.Crypt(out_buf, key, key_len);
+			basic_info.crypt_mode = 1;
+		}
+		logger.Log(L"Success encryption data...");
+	}
+	else
+	{
+		basic_info.crypt_mode = 0;
+		logger.Log(L"Encryption data off.");
+	}
 }

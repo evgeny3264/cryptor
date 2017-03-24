@@ -1,12 +1,11 @@
 #include "gui.h"
-
+#include "Protector.h"
 HWND hEditIn;
 HWND hEditOut;
 HWND hEditLog;
 HWND hTextLog;
 
 HINSTANCE hInst;
-options opt;
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
@@ -61,20 +60,21 @@ INT_PTR CALLBACK MainDlg(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 		case IDOK:
 		{
-			
+			Options options;
 			szPathIn = new WCHAR[MAX_PATH];
 			SendMessage(hEditIn, WM_GETTEXT, MAX_PATH, (LPARAM)szPathIn);
 			szPathOut = new WCHAR[MAX_PATH];
 			SendMessage(hEditOut, WM_GETTEXT, MAX_PATH, (LPARAM)szPathOut);
 			szPathLog = new WCHAR[MAX_PATH];
 			SendMessage(hEditLog, WM_GETTEXT, MAX_PATH, (LPARAM)szPathLog);
-			opt.force_mode = IsDlgButtonChecked(hDlg, IDC_FORCE);
-			opt.strip_dos_headers = IsDlgButtonChecked(hDlg, IDC_SDH);
-			opt.crypt = IsDlgButtonChecked(hDlg, IDC_CRYPT);
-			opt.rc5 = IsDlgButtonChecked(hDlg, IDC_RC5);
-			opt.anti_debug = IsDlgButtonChecked(hDlg, IDC_AD);
-			opt.rebuild_load_config = IsDlgButtonChecked(hDlg, IDC_RLG);
-			protect(szPathIn, szPathOut, szPathLog,opt);
+			options.force_mode = IsDlgButtonChecked(hDlg, IDC_FORCE);
+			options.strip_dos_headers = IsDlgButtonChecked(hDlg, IDC_SDH);
+			options.crypt = IsDlgButtonChecked(hDlg, IDC_CRYPT);
+			options.rc5 = IsDlgButtonChecked(hDlg, IDC_RC5);
+			options.anti_debug = IsDlgButtonChecked(hDlg, IDC_AD);
+			options.rebuild_load_config = IsDlgButtonChecked(hDlg, IDC_RLG);
+			Protector cryptor(szPathIn, szPathOut, szPathLog, options);
+			cryptor.Protect();
 			delete[] szPathIn;
 			delete[] szPathOut;
 			delete[] szPathLog;
@@ -225,9 +225,9 @@ LPWSTR OpenPEFile()
 	return lszFile;
 }
 
-void LogEdit(std::wstring str)
+void LogEdit(std::wstring message)
 {
 	int index = GetWindowTextLength(hTextLog);
 	SendMessage(hTextLog, EM_SETSEL, (WPARAM)index, (LPARAM)index); // set selection - end of text
-	SendMessage(hTextLog, EM_REPLACESEL, 0, (LPARAM)str.c_str());
+	SendMessage(hTextLog, EM_REPLACESEL, 0, (LPARAM)message.c_str());
 }

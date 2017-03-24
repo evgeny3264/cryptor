@@ -1,4 +1,12 @@
-#include <string>
+#pragma once
 
-void xor_crypt(unsigned char & in, const unsigned char key);
-void nxor_crypt(std::string &in, const unsigned char* key, int key_size);
+#include <string>
+class Xor 
+{
+public:
+	Xor();
+	~Xor();
+	int Crypt(std::string &in, const unsigned char* key, int key_size) ;
+	int Crypt(unsigned char * & in, int data_size, const unsigned char* key, int key_size) ;
+};
+

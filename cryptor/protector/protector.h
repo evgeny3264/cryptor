@@ -1,25 +1,26 @@
-п»ї#include <iostream>
+#pragma once
+#include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
 #include <boost/scoped_array.hpp>
 #include <ctime>
 #include <boost/timer.hpp>
-//Р—Р°РіРѕР»РѕРІРѕС‡РЅС‹Р№ С„Р°Р№Р» Р±РёР±Р»РёРѕС‚РµРєРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ PE-С„Р°Р№Р»Р°РјРё
+//Заголовочный файл библиотеки для работы с PE-файлами
 #include <pe_lib/pe_bliss.h>
 #include <pe_lib/pe_bliss_resources.h>
-//Р—Р°РіРѕР»РѕРІРѕС‡РЅС‹Р№ С„Р°Р№Р» Р°Р»РіРѕСЂРёС‚РјР° LZO1Z999
+//Заголовочный файл алгоритма LZO1Z999
 #include "../../lzo-2.06/include/lzo/lzo1z.h"
-//Р—Р°РіРѕР»РѕРІРѕС‡РЅС‹Р№ С„Р°Р№Р» СЃ РЅР°С€РёРјРё СЃС‚СЂСѓРєС‚СѓСЂР°РјРё
+//Заголовочный файл с нашими структурами
 #include "structs.h"
-//Р—Р°РіРѕР»РѕРІРѕС‡РЅС‹Р№ С„Р°Р№Р» СЃ РїР°СЂР°РјРµС‚СЂР°РјРё СЂР°СЃРїР°РєРѕРІС‰РёРєР°
+//Заголовочный файл с параметрами распаковщика
 #include "../unpacker/parameters.h"
-//РўРµР»Рѕ СЂР°СЃРїР°РєРѕРІС‰РёРєР° (Р°РІС‚РѕРіРµРЅРµСЂРµРЅРЅРѕРµ)
-#include "unpacker.h"
 #include "options.h"
+#include "Util.h"
+#include "Logger.h"
 #include "rc5.h"
 #include "xor.h"
-//Р”РёСЂРµРєС‚РёРІС‹ РґР»СЏ Р»РёРЅРєРѕРІР°РЅРёСЏ СЃ СЃРѕР±СЂР°РЅРЅС‹РјРё Р±РёР±Р»РёРѕС‚РµРєР°РјРё PE Рё LZO
+//Директивы для линкования с собранными библиотеками PE и LZO
 #ifndef _M_X64
 #ifdef _DEBUG
 #pragma comment(lib, "../../pe_bliss_1.0.0/Debug/pe_bliss.lib")
@@ -39,6 +40,18 @@
 #endif
 using namespace pe_bliss;
 
-std::string to_utf8(const std::wstring& str);
-std::string to_utf8(const wchar_t* buffer, int len);
-std::wstring to_wstr(char* str);
+class Protector
+{
+public:
+	Protector(WCHAR * inFile, WCHAR * outFile, std::wstring logFile, Options);
+	~Protector();
+	int Protect();	
+private:	
+	Options options;
+	WCHAR * inFile;
+	WCHAR * outFile;	
+	Logger logger;
+	void Crypt( packed_file_info &basic_info, std::string & out_buf);
+	void AntiDebug(packed_file_info &basic_info);
+};
+
