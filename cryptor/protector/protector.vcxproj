@@ -48,7 +48,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>..\..\pe_bliss_1.0.0;D:\boost_1_63_0;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\boost_1_63_0;$(LibraryPath)</LibraryPath>
+    <LibraryPath>D:\boost_1_63_0\stage\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

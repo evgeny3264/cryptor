@@ -1,13 +1,15 @@
 #include "Protector.h"
+
 //Тело распаковщика (автогенеренное)
 #include "unpacker.h"
 #include "Xor.h"
 #include "Rc5.h"
+#include <boost/filesystem.hpp>
 
-Protector::Protector(WCHAR * inFile, WCHAR * outFile, std::wstring logFile, Options opt) :
-	options(opt),
-	inFile(inFile),
-	outFile(outFile),
+Protector::Protector(std::wstring  inFile, std::wstring outFile, std::wstring logFile, Options options) :
+	options(options),
+	input_file_name(inFile),
+	output_file_name(outFile),
 	logger(logFile)	
 {
 }
@@ -16,26 +18,16 @@ Protector::~Protector()
 {
 }
 
-int Protector::Protect()
+void Protector::Protect()
 {
 	//Таймер будет считать, сколько времени
 	//ушло на упаковку файла
-	boost::timer pack_timer;	
-
-	//Путь к исходному файлу
-	std::wstring input_file_name(inFile);
-	//Путь для упакованного файла
-	std::wstring output_file_name(outFile);
+	boost::timer pack_timer;
 	//Если не указан путь к исходному файлу
 	if (input_file_name.empty()) {
 		logger.Log(L"No input file specified");
-
-		return 0;
+		return;
 	}
-	WCHAR* backupFile = new WCHAR[MAX_PATH];
-	wcscpy_s(backupFile, MAX_PATH, inFile);
-	wcscat_s(backupFile, MAX_PATH, L"_o");
-	CopyFile(inFile, backupFile, false);
 
 	//Если указан режим принудительной упаковки
 	if (options.force_mode)
@@ -47,15 +39,16 @@ int Protector::Protect()
 	logger.Log(L"Packing file: " + input_file_name);
 
 	//Открываем файл - его имя хранится в массиве argv по индексу 1
-	std::auto_ptr<std::ifstream> file;
+	std::unique_ptr<std::ifstream> file;
 	file.reset(new std::ifstream(input_file_name, std::ios::in | std::ios::binary));
 	if (!*file)
 	{
 		//Если открыть файл не удалось - сообщим и выйдем с ошибкой
 		logger.Log(L"Cannot open " + input_file_name);
-		return -1;
+		return;
 	}
-
+	// create backup pe-file
+	boost::filesystem::copy_file(input_file_name, input_file_name + L"_o");
 	try
 	{
 		//Пытаемся открыть файл как 32-битный PE-файл
@@ -69,7 +62,7 @@ int Protector::Protect()
 		if (image.is_dotnet() && !options.force_mode)
 		{
 			logger.Log(L".NET image cannot be packed!");
-			return -1;
+			return;
 		}
 
 		//Просчитаем энтропию секций файла, чтобы убедиться, что файл не упакован
@@ -85,7 +78,7 @@ int Protector::Protect()
 			{
 				logger.Log(L"File has already been packed!");
 				if (!options.force_mode)
-					return -1;
+					return;
 			}
 		}
 
@@ -93,7 +86,7 @@ int Protector::Protect()
 		if (lzo_init() != LZO_E_OK)
 		{
 			logger.Log(L"Error initializing LZO library");
-			return -1;
+			return;
 		}
 
 		logger.Log(L"Reading sections...");
@@ -103,7 +96,7 @@ int Protector::Protect()
 		{
 			//Если у файла нет ни одной секции, нам нечего упаковывать
 			logger.Log(L"File has no sections!");
-			return -1;
+			return;
 		}
 
 		//Структура базовой информации о PE-файле
@@ -192,7 +185,7 @@ int Protector::Protect()
 			if (raw_section_data.empty())
 			{
 				logger.Log(L"All sections of PE file are empty!");
-				return -1;
+				return;
 			}
 
 			packed_sections_info += raw_section_data;
@@ -208,51 +201,12 @@ int Protector::Protect()
 		//Ссылка на сырые данные секции
 		std::string& out_buf = new_section.get_raw_data();
 
-
-		//Создаем "умный" указатель
-		//и выделяем необходимую для сжатия алгоритму LZO память
-		//Умный указатель в случае чего автоматически
-		//эту память освободит
-		//Мы используем тип lzo_align_t для того, чтобы
-		//память была выровняна как надо
-		//(из документации к LZO)
-		boost::scoped_array<lzo_align_t> work_memory(new lzo_align_t[LZO1Z_999_MEM_COMPRESS]);
-
 		//Длина неупакованных данных
 		lzo_uint src_length = packed_sections_info.size();
-		//Сохраним ее в нашу структуру информации о файле
-		basic_info.size_of_unpacked_data = src_length;
+		
+		if (!PackData(basic_info, src_length, out_buf, packed_sections_info))
+			return;
 
-		//Длина упакованных данных
-		//(пока нам неизвестна)
-		lzo_uint out_length = 0;
-
-		//Необходимый буфер для сжатых данных
-		//(длина опять-таки исходя из документации к LZO)
-		out_buf.resize(src_length + src_length / 16 + 64 + 3);
-
-		//Производим сжатие данных
-		logger.Log(L"Packing data...");
-		if (LZO_E_OK !=
-			lzo1z_999_compress(reinterpret_cast<const unsigned char*>(packed_sections_info.data()),
-				src_length,
-				reinterpret_cast<unsigned char*>(&out_buf[0]),
-				&out_length,
-				work_memory.get())
-			)
-		{
-			//Если что-то не так, выйдем
-			logger.Log(L"Error compressing data!");
-			return -1;
-		}
-
-		logger.Log(L"Packing complete...");
-		//Сохраним длину упакованных данных в нашу структуру
-		basic_info.size_of_packed_data = out_length;
-		//Ресайзим выходной буфер со сжатыми данными по
-		//результирующей длине сжатых данных, которая
-		//теперь нам известна
-		out_buf.resize(out_length);
 		basic_info.size_of_crypted_data = basic_info.size_of_packed_data;
 		basic_info.iv1 = 0;
 		basic_info.iv2 = 0;
@@ -272,18 +226,16 @@ int Protector::Protect()
 		{
 			logger.Log(L"File is incompressible!");
 			if (!options.force_mode)
-				return -1;
+				return;
 		}
 
-
 		//Если файл имеет TLS, получим информацию о нем
-		std::auto_ptr<tls_info> tls;
+		std::unique_ptr<tls_info> tls;
 		if (image.has_tls())
 		{
 			logger.Log(L"Reading TLS...");
 			tls.reset(new tls_info(get_tls_info(image)));
 		}
-
 
 		//Если файл имеет экспорты, получим информацию о них
 		//и их список
@@ -295,9 +247,8 @@ int Protector::Protect()
 			exports = get_exported_functions(image, exports_info);
 		}
 
-
 		//Если файл имеет Image Load Config, получим информацию о ней
-		std::auto_ptr<image_config_info> load_config;
+		std::unique_ptr<image_config_info> load_config;
 		if (image.has_config() && options.rebuild_load_config)
 		{
 			logger.Log(L"Reading Image Load Config...");
@@ -776,46 +727,12 @@ int Protector::Protect()
 
 
 		std::wstring base_file_name;
-
-		if (output_file_name.empty())
-		{
-			//Создаем новый PE-файл
-			//Вычислим имя переданного нам файла без директории
-			base_file_name = input_file_name;
-			std::wstring dir_name;
-			std::wstring::size_type slash_pos;
-			if ((slash_pos = base_file_name.find_last_of(L"/\\")) != std::string::npos)
-			{
-				dir_name = base_file_name.substr(0, slash_pos + 1); //Директория исходного файла
-				base_file_name = base_file_name.substr(slash_pos + 1); //Имя исходного файла
-			}
-
-			//Дадим новому файлу имя packed_ + имя_оригинального_файла
-			//Вернем к нему исходную директорию, чтобы сохранить
-			//файл туда, где лежит оригинал
-			base_file_name = dir_name + L"packed_" + base_file_name;
-		}
-		else
-		{
-			base_file_name = output_file_name;
-		}
-
-
-		//Создадим файл
-		std::ofstream new_pe_file(base_file_name.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
-		if (!new_pe_file)
+		if (!SaveResultFile(base_file_name, image))
 		{
 			//Если не удалось создать файл - выведем ошибку
 			logger.Log(L"Cannot create " + base_file_name);
-			return -1;
-		}
-
-		//Пересобираем PE-образ
-		//Урезаем DOS-заголовок, накладывая на него NT-заголовки
-		//(за это отвечает второй параметр true)
-		//Не пересчитываем SizeOfHeaders - за это отвечает третий параметр
-		rebuild_pe(image, new_pe_file, options.strip_dos_headers, false);
-
+			return;
+		}		
 		//Оповестим пользователя, что файл упакован успешно
 		logger.Log(L"Packed image was saved to " + base_file_name);
 		logger.Log(L"Resulting sections entropy: " + std::to_wstring(entropy_calculator::calculate_entropy(image)));
@@ -826,9 +743,96 @@ int Protector::Protect()
 		//Если по какой-то причине открыть его не удалось
 		//Выведем текст ошибки и выйдем
 		logger.Log(L"Error: " + Util::StringToWstring(e.what()));
-		return -1;
 	}
-	return 0;
+}
+
+bool Protector::PackData(packed_file_info &basic_info, const lzo_uint &src_length, std::string & out_buf, std::string &packed_sections_info)
+{	
+	//Длина упакованных данных
+	//(пока нам неизвестна)
+	lzo_uint out_length = 0;
+	//Создаем "умный" указатель
+	//и выделяем необходимую для сжатия алгоритму LZO память
+	//Умный указатель в случае чего автоматически
+	//эту память освободит
+	//Мы используем тип lzo_align_t для того, чтобы
+	//память была выровняна как надо
+	//(из документации к LZO)
+	boost::scoped_array<lzo_align_t> work_memory(new lzo_align_t[LZO1Z_999_MEM_COMPRESS]);
+
+
+	//Сохраним ее в нашу структуру информации о файле
+	basic_info.size_of_unpacked_data = src_length;
+
+
+
+	//Необходимый буфер для сжатых данных
+	//(длина опять-таки исходя из документации к LZO)
+	out_buf.resize(src_length + src_length / 16 + 64 + 3);
+
+	//Производим сжатие данных
+	logger.Log(L"Packing data...");
+	if (LZO_E_OK !=
+		lzo1z_999_compress(reinterpret_cast<const unsigned char*>(packed_sections_info.data()),
+			src_length,
+			reinterpret_cast<unsigned char*>(&out_buf[0]),
+			&out_length,
+			work_memory.get())
+		)
+	{
+		//Если что-то не так, выйдем
+		logger.Log(L"Error compressing data!");
+		return false;
+	}
+
+
+	//Сохраним длину упакованных данных в нашу структуру
+	basic_info.size_of_packed_data = out_length;
+	//Ресайзим выходной буфер со сжатыми данными по
+	//результирующей длине сжатых данных, которая
+	//теперь нам известна
+	out_buf.resize(out_length);
+	logger.Log(L"Packing complete...");
+	return true;
+}
+
+bool Protector::SaveResultFile(std::wstring &base_file_name, pe_bliss::pe_base &image)
+{
+	if (!output_file_name.empty())
+	{
+		base_file_name = output_file_name;
+	}
+	else
+	{
+		//Создаем новый PE-файл
+		//Вычислим имя переданного нам файла без директории
+		base_file_name = input_file_name;
+		std::wstring dir_name;
+		std::wstring::size_type slash_pos;
+		if ((slash_pos = base_file_name.find_last_of(L"/\\")) != std::string::npos)
+		{
+			dir_name = base_file_name.substr(0, slash_pos + 1); //Директория исходного файла
+			base_file_name = base_file_name.substr(slash_pos + 1); //Имя исходного файла
+		}
+		//Дадим новому файлу имя packed_ + имя_оригинального_файла
+		//Вернем к нему исходную директорию, чтобы сохранить
+		//файл туда, где лежит оригинал
+		base_file_name = dir_name + L"packed_" + base_file_name;
+	}
+
+
+	//Создадим файл
+	std::ofstream new_pe_file(base_file_name.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
+	if (!new_pe_file)
+	{		
+		return false;
+	}
+	//Пересобираем PE-образ
+	//Урезаем DOS-заголовок, накладывая на него NT-заголовки
+	//(за это отвечает второй параметр true)
+	//Не пересчитываем SizeOfHeaders - за это отвечает третий параметр
+	rebuild_pe(image, new_pe_file, options.strip_dos_headers, false);
+	return true;
 }
 
 void Protector::AntiDebug(packed_file_info &basic_info)

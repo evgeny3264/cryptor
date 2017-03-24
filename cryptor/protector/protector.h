@@ -43,15 +43,18 @@ using namespace pe_bliss;
 class Protector
 {
 public:
-	Protector(WCHAR * inFile, WCHAR * outFile, std::wstring logFile, Options);
+	Protector(std::wstring  inFile, std::wstring outFile, std::wstring logFile, Options);
 	~Protector();
-	int Protect();	
+	void Protect();
 private:	
 	Options options;
-	WCHAR * inFile;
-	WCHAR * outFile;	
+	std::wstring  input_file_name;
+	std::wstring  output_file_name;
 	Logger logger;
+	bool PackData(packed_file_info &basic_info, const lzo_uint &src_length, std::string & out_buf, std::string &packed_sections_info);
 	void Crypt( packed_file_info &basic_info, std::string & out_buf);
 	void AntiDebug(packed_file_info &basic_info);
+	bool SaveResultFile(std::wstring &base_file_name, pe_bliss::pe_base &image);
+	
 };
 
