@@ -1,2 +1,1 @@
-﻿Криптор+упаковщик+антиотладка+GUI exe/dll файлов.
-Для компиляции необходимо: Visual studio 2017, boost_1_63_0.
+Cryptor + packer + anti-debugging + GUI exe / dll files.
